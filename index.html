@@ -1,0 +1,3926 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>교육환경 일조 시뮬레이터 v1.0</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+
+  <style>
+    /* ═══════════════════════════════════════════
+       DESIGN TOKENS — Refined Editorial
+    ═══════════════════════════════════════════ */
+    :root {
+      --bg: #FAFAF7;
+      --surface: #FFFFFF;
+      --surface-2: #F5F4EF;
+      --surface-3: #EEEDE6;
+      --line: #EAE7DD;
+      --line-2: #D8D4C7;
+      --line-soft: #F0EDE3;
+      --ink: #161613;
+      --ink-2: #5A5853;
+      --ink-3: #918E85;
+      --ink-4: #B8B5AC;
+      --y: #FEE500;
+      --y-deep: #E5CE00;
+      --y-soft: #FFF8C2;
+      --y-tint: #FFFBE0;
+      --brown: #1F1410;
+      --brown-2: #3D2A22;
+      --red: #D64545;
+      --red-soft: #FCEDED;
+      --orange: #D97706;
+      --orange-soft: #FDF0E0;
+      --green: #2E8B57;
+      --green-soft: #E8F3EC;
+      --blue: #2563A8;
+      --blue-soft: #E6EEF7;
+      --violet: #6B5BBF;
+      --violet-soft: #ECE9F8;
+      --r-xs: 6px;
+      --r-sm: 8px;
+      --r-md: 10px;
+      --r-lg: 14px;
+      --r-xl: 20px;
+      --shadow-1: 0 1px 2px rgba(20, 15, 10, .04), 0 0 0 1px rgba(20, 15, 10, .03);
+      --shadow-2: 0 2px 8px rgba(20, 15, 10, .06), 0 0 0 1px rgba(20, 15, 10, .04);
+      --shadow-3: 0 8px 24px rgba(20, 15, 10, .10), 0 0 0 1px rgba(20, 15, 10, .04);
+      --font-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    *::selection {
+      background: var(--y);
+      color: var(--brown);
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      letter-spacing: -0.005em;
+    }
+
+    /* HEADER */
+    header {
+      background: var(--surface);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--line);
+      position: relative;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .logo-icon {
+      width: 26px;
+      height: 26px;
+      background: var(--y);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--brown);
+      box-shadow: inset 0 0 0 1px var(--y-deep);
+    }
+
+    .logo-meta {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--ink-3);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      margin-left: 4px;
+    }
+
+    /* ★ 헤더의 API 키 입력 영역 - 화면에서는 완전히 숨기되, DOM에는 유지(initMap에서 value 사용) */
+    .keys {
+      display: none !important;
+    }
+
+    /* LAYOUT */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 380px;
+      background: var(--surface);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: var(--line-2);
+      border: 2px solid var(--surface);
+      border-radius: 8px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb:hover {
+      background: var(--ink-4);
+    }
+
+    /* SECTIONS */
+    .section {
+      padding: 24px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .section-num {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 20px;
+      background: var(--ink);
+      color: var(--surface);
+      letter-spacing: 0.05em;
+    }
+
+    .section-num.purple {
+      background: var(--violet);
+      color: white;
+    }
+
+    .section-num.violet {
+      background: var(--blue);
+      color: white;
+    }
+
+    .section h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.015em;
+    }
+
+    .section-subtitle {
+      font-size: 11.5px;
+      color: var(--ink-3);
+      margin-left: auto;
+      font-weight: 500;
+    }
+
+    /* INPUTS */
+    .input-box {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--line-2);
+      border-radius: var(--r-md);
+      color: var(--ink);
+      padding: 11px 14px;
+      font-size: 13.5px;
+      font-family: var(--font-sans);
+      margin-bottom: 10px;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+
+    .input-box::placeholder {
+      color: var(--ink-4);
+    }
+
+    .input-box:focus {
+      outline: none;
+      border-color: var(--ink);
+      box-shadow: 0 0 0 3px rgba(20, 15, 10, .06);
+    }
+
+    /* BUTTONS */
+    .btn {
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: var(--r-md);
+      padding: 11px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: all .15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: -0.005em;
+    }
+
+    .btn-primary {
+      background: var(--ink);
+      color: var(--surface);
+      border-color: var(--ink);
+    }
+
+    .btn-primary:hover {
+      background: var(--brown);
+      border-color: var(--brown);
+    }
+
+    .btn-primary:disabled {
+      opacity: .35;
+      cursor: not-allowed;
+    }
+
+    .btn-ghost,
+    .btn.accent-ghost {
+      background: var(--surface);
+      color: var(--ink);
+      border-color: var(--line-2);
+    }
+
+    .btn-ghost:hover,
+    .btn.accent-ghost:hover {
+      background: var(--surface-2);
+      border-color: var(--ink);
+    }
+
+    .btn-ghost.active,
+    .btn.accent-ghost.active {
+      background: var(--green);
+      color: white;
+      border-color: var(--green);
+    }
+
+    .btn-purple,
+    .btn.purple {
+      background: var(--violet);
+      color: white;
+      border-color: var(--violet);
+      margin-top: 4px;
+    }
+
+    .btn-purple:hover:not(:disabled),
+    .btn.purple:hover:not(:disabled) {
+      background: #5746B0;
+      border-color: #5746B0;
+    }
+
+    .btn-purple:disabled,
+    .btn.purple:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    .btn-orange,
+    .btn.orange {
+      background: var(--surface);
+      color: var(--orange);
+      border-color: var(--orange);
+      margin-top: 4px;
+    }
+
+    .btn-orange:hover:not(:disabled),
+    .btn.orange:hover:not(:disabled) {
+      background: var(--orange-soft);
+    }
+
+    .btn-orange.active,
+    .btn.orange.active {
+      background: var(--orange);
+      color: white;
+    }
+
+    /* PARCEL LIST */
+    .parcel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .parcel-header span {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      letter-spacing: 0.08em;
+    }
+
+    #parcelCountTxt {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--ink);
+      background: var(--y);
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .parcel-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--y);
+      border-radius: var(--r-sm);
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      transition: background .15s ease;
+    }
+
+    .parcel-item:hover {
+      background: var(--surface-2);
+    }
+
+    .parcel-item .pname {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .parcel-item .parea {
+      font-size: 11px;
+      color: var(--ink-3);
+      margin-top: 2px;
+      font-family: var(--font-mono);
+    }
+
+    .del-btn {
+      background: transparent;
+      color: var(--ink-3);
+      border: 1px solid var(--line-2);
+      border-radius: var(--r-xs);
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s ease;
+      flex-shrink: 0;
+      font-family: var(--font-sans);
+    }
+
+    .del-btn:hover {
+      background: var(--red);
+      color: white;
+      border-color: var(--red);
+    }
+
+    /* COMBINED + CALC BOX */
+    .combined-box {
+      background: var(--y-tint);
+      border: 1px solid var(--y-deep);
+      border-radius: var(--r-md);
+      padding: 11px 14px;
+      font-size: 12px;
+      margin: 4px 0 12px;
+      line-height: 1.7;
+      color: var(--brown);
+      font-family: var(--font-mono);
+    }
+
+    .combined-box strong {
+      color: var(--brown);
+      font-weight: 600;
+      font-family: var(--font-sans);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .sep {
+      height: 1px;
+      background: var(--line);
+      margin: 14px 0;
+    }
+
+    /* PARAM GRID */
+    .param-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .param-cell {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+      padding: 10px 12px;
+      transition: border-color .15s ease;
+    }
+
+    .param-cell:focus-within {
+      border-color: var(--ink);
+      box-shadow: 0 0 0 3px rgba(20, 15, 10, .05);
+    }
+
+    .param-cell label {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .param-cell .prow {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .param-cell input {
+      background: transparent;
+      border: none;
+      color: var(--ink);
+      font-size: 19px;
+      font-weight: 700;
+      width: 64px;
+      padding: 0;
+      outline: none;
+      font-family: var(--font-mono);
+      letter-spacing: -0.02em;
+    }
+
+    .param-cell .unit {
+      font-size: 12px;
+      color: var(--ink-3);
+      font-weight: 500;
+    }
+
+    .calc-box {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+      padding: 11px 14px;
+      font-size: 11.5px;
+      color: var(--ink-2);
+      line-height: 2;
+      margin-bottom: 4px;
+      font-family: var(--font-mono);
+    }
+
+    .calc-box strong {
+      color: var(--ink);
+      font-weight: 600;
+      font-family: var(--font-sans);
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ZONE TOGGLE */
+    .zone-toggle,
+    .kinder-zone-toggle {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+      padding: 4px;
+    }
+
+    .ztbtn {
+      flex: 1;
+      padding: 7px 6px;
+      border-radius: var(--r-xs);
+      font-size: 10.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all .15s ease;
+      background: transparent;
+      color: var(--ink-3);
+      text-align: center;
+      font-family: var(--font-sans);
+    }
+
+    .ztbtn.abs.on {
+      background: var(--red-soft);
+      color: var(--red);
+      border-color: rgba(214, 69, 69, .2);
+    }
+
+    .ztbtn.rel.on {
+      background: var(--orange-soft);
+      color: var(--orange);
+      border-color: rgba(217, 119, 6, .2);
+    }
+
+    .ztbtn.pln.on {
+      background: var(--y-tint);
+      color: var(--brown);
+      border-color: var(--y-deep);
+    }
+
+    /* LEGEND */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      font-size: 10.5px;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+    }
+
+    .leg-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-2);
+      font-weight: 500;
+    }
+
+    .leg-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* SCHOOL CARDS */
+    .school-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--violet);
+      border-radius: var(--r-md);
+      padding: 12px 14px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+
+    .school-card:hover {
+      background: var(--surface-2);
+      border-color: var(--line-2);
+      border-left-color: var(--violet);
+    }
+
+    .school-card.active {
+      background: var(--violet-soft);
+      border-color: var(--violet);
+      box-shadow: var(--shadow-1);
+    }
+
+    .school-card.planned-card {
+      border-left-color: var(--orange);
+    }
+
+    .school-card.planned-card:hover {
+      background: var(--orange-soft);
+    }
+
+    .school-card.planned-card.active {
+      background: var(--orange-soft);
+      border-color: var(--orange);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.4;
+      letter-spacing: -0.005em;
+    }
+
+    .card-meta {
+      font-size: 10.5px;
+      color: var(--ink-3);
+      display: flex;
+      gap: 10px;
+      font-family: var(--font-mono);
+    }
+
+    .card-chips {
+      margin-top: 8px;
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      font-size: 9.5px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.02em;
+      border: 1px solid transparent;
+    }
+
+    .chip.abs {
+      background: var(--red-soft);
+      color: var(--red);
+      border-color: rgba(214, 69, 69, .2);
+    }
+
+    .chip.rel {
+      background: var(--orange-soft);
+      color: var(--orange);
+      border-color: rgba(217, 119, 6, .2);
+    }
+
+    .chip.pln {
+      background: var(--y-tint);
+      color: var(--brown);
+      border-color: var(--y-deep);
+    }
+
+    /* KINDERGARTEN */
+    .kinder-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--green);
+      border-radius: var(--r-md);
+      padding: 12px 14px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+
+    .kinder-card:hover {
+      background: var(--green-soft);
+    }
+
+    .kinder-card.active {
+      background: var(--green-soft);
+      border-color: var(--green);
+      box-shadow: var(--shadow-1);
+    }
+
+    .kinder-card .kname {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
+      letter-spacing: -0.005em;
+    }
+
+    .kinder-card .kmeta {
+      font-size: 10.5px;
+      color: var(--ink-3);
+      font-family: var(--font-mono);
+      display: flex;
+      gap: 10px;
+    }
+
+    .kinder-card .kchips {
+      margin-top: 8px;
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .chip.kinder {
+      background: var(--green-soft);
+      color: var(--green);
+      border: 1px solid rgba(46, 139, 87, .2);
+      font-size: 9.5px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    .chip.custom {
+      background: var(--blue-soft);
+      color: var(--blue);
+      border: 1px solid rgba(37, 99, 168, .25);
+      font-size: 9.5px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    /* HIDDEN NEARBY COMPLEX SECTION */
+    #nearbyComplexSection {
+      display: none !important;
+    }
+
+    /* ANALYSIS CONTROLS */
+    .control-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .control-row label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--ink-2);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .control-row input,
+    .control-row select {
+      background: var(--surface);
+      border: 1px solid var(--line-2);
+      border-radius: var(--r-sm);
+      color: var(--ink);
+      padding: 7px 10px;
+      font-size: 12.5px;
+      font-family: var(--font-sans);
+      width: 160px;
+      transition: border-color .15s;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .control-row input:focus,
+    .control-row select:focus {
+      border-color: var(--ink);
+      box-shadow: 0 0 0 3px rgba(20, 15, 10, .05);
+    }
+
+    /* MAP */
+    #mapWrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: var(--surface-2);
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      background: #ECEAE3;
+    }
+
+    /* 카카오맵 베이스 타일(첫 번째 컨테이너의 첫 번째 자식)만 회색조.
+       지적편집도(2번째 자식), 폴리곤, 라벨은 컬러 유지. */
+    /* 1단계: #map 내부 모든 img를 회색 처리 (베이스 + 백버퍼 [0-0], [0-1]) */
+    #map img {
+      filter: grayscale(100%) brightness(1.02) contrast(0.95) !important;
+    }
+
+    /* 2단계: 3번째 자식 div [0-2] (지적편집도)만 컬러 복원 */
+    #map>div>div:nth-child(1)>div:nth-child(3) img {
+      filter: none !important;
+    }
+
+    /* CustomOverlay 라벨/오버레이 내부 img는 컬러 */
+    #map .map-label img,
+    #map [class*="overlay"] img {
+      filter: none !important;
+    }
+
+    .map-float-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 500;
+    }
+
+    #cadastralBtn {
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid var(--line-2);
+      border-radius: var(--r-md);
+      padding: 9px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: var(--shadow-2);
+      transition: all .15s ease;
+      letter-spacing: -0.005em;
+    }
+
+    #cadastralBtn:hover {
+      background: var(--y-tint);
+      border-color: var(--y-deep);
+    }
+
+    /* MAP LABELS */
+    .map-label.kinder-label {
+      pointer-events: auto !important;
+      cursor: grab;
+    }
+
+    .map-label {
+      background: var(--surface);
+      border: 1px solid;
+      padding: 4px 11px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      white-space: nowrap;
+      box-shadow: var(--shadow-2);
+      pointer-events: none;
+      letter-spacing: -0.005em;
+    }
+
+    .map-label.school {
+      border-color: var(--violet);
+      color: var(--violet);
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .map-label.planned-school {
+      border-color: var(--orange);
+      color: var(--orange);
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .map-label.project {
+      border-color: var(--y-deep);
+      color: var(--brown);
+      background: var(--y);
+    }
+
+    /* BANNERS */
+    .mode-banner {
+      display: none;
+      position: fixed;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 11px 22px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      z-index: 1000;
+      cursor: pointer;
+      box-shadow: var(--shadow-3);
+      letter-spacing: -0.005em;
+    }
+
+    .mode-banner.on {
+      display: block;
+    }
+
+    .mode-banner.parcel-mode {
+      background: var(--ink);
+      color: var(--y);
+      border: 1px solid var(--ink);
+    }
+
+    .mode-banner.planned-mode {
+      background: var(--orange);
+      color: white;
+      border: 1px solid var(--orange);
+    }
+
+    /* STATUS BAR */
+    .status-bar {
+      padding: 10px 22px;
+      background: var(--surface);
+      border-top: 1px solid var(--line);
+      font-size: 11.5px;
+      color: var(--ink-2);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      letter-spacing: -0.005em;
+    }
+
+    .status-bar::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(46, 139, 87, .2);
+      flex-shrink: 0;
+      animation: statusPulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes statusPulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: .4;
+      }
+    }
+
+    /* LOADING */
+    .loading {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(250, 250, 247, .92);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .loading.on {
+      display: flex;
+    }
+
+    .spin-wrap {
+      position: relative;
+      width: 44px;
+      height: 44px;
+    }
+
+    .spin {
+      width: 44px;
+      height: 44px;
+      border: 3px solid var(--line);
+      border-top-color: var(--ink);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #loadingMsg {
+      font-size: 13px;
+      font-family: var(--font-sans);
+      color: var(--ink-2);
+      font-weight: 500;
+      letter-spacing: -0.005em;
+    }
+
+    /* SHADOW SLIDER */
+    .slider-wrap {
+      margin-top: 16px;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .slider-header span:first-child {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--ink-2);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    #shadowTimeLabel {
+      font-family: var(--font-mono);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+
+    #shadowSlider {
+      width: 100%;
+      height: 4px;
+      accent-color: var(--ink);
+      cursor: pointer;
+    }
+
+    .slider-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9.5px;
+      font-family: var(--font-mono);
+      color: var(--ink-4);
+      margin-top: 6px;
+      letter-spacing: 0.04em;
+    }
+
+    .slider-hint {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--ink-2);
+      padding: 9px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      line-height: 1.55;
+    }
+
+    #resultBox>div {
+      border-radius: var(--r-md) !important;
+    }
+
+    /* ═══════════════════════════════════════════
+       MOBILE RESPONSIVE — Bottom Sheet Pattern
+    ═══════════════════════════════════════════ */
+    @media (max-width: 768px) {
+
+      /* 헤더 슬림화 */
+      header {
+        height: 48px;
+        padding: 0 14px;
+      }
+
+      .logo {
+        font-size: 13px;
+        gap: 8px;
+      }
+
+      .logo-icon {
+        width: 22px;
+        height: 22px;
+        font-size: 12px;
+      }
+
+      .logo-meta {
+        font-size: 9px;
+        padding: 2px 6px;
+      }
+
+      /* 메인 레이아웃: 지도 전체화면 */
+      .main {
+        flex-direction: column;
+        position: relative;
+      }
+
+      /* 사이드바 → 하단 시트로 변환 */
+      .sidebar {
+        position: fixed;
+        bottom: 30px;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 50vh;
+        max-height: 75vh;
+        min-height: 56px;
+        border-right: none;
+        border-top: 1px solid var(--line);
+        border-radius: 18px 18px 0 0;
+        z-index: 999;
+        box-shadow: 0 -8px 32px rgba(20, 15, 10, .12);
+        transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        background: var(--surface);
+      }
+
+      .sidebar.collapsed {
+        height: 56px;
+      }
+
+      .sidebar.expanded {
+        height: 85vh;
+      }
+
+      /* 시트 핸들 (드래그 바) */
+      .sheet-handle {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px 0 6px;
+        cursor: grab;
+        background: var(--surface);
+        border-bottom: 1px solid var(--line-soft);
+        flex-shrink: 0;
+        user-select: none;
+        touch-action: none;
+      }
+
+      .sheet-handle::before {
+        content: '';
+        width: 40px;
+        height: 4px;
+        background: var(--line-2);
+        border-radius: 4px;
+        margin-bottom: 4px;
+        transition: background 0.15s ease;
+      }
+
+      .sheet-handle:active::before {
+        background: var(--ink-3);
+      }
+
+      .sheet-handle-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink-2);
+        letter-spacing: -0.005em;
+      }
+
+      /* 시트 내용 스크롤 영역 */
+      .sidebar-content {
+        flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* 데스크탑에선 핸들 숨김 */
+      .sheet-handle {
+        display: flex;
+      }
+
+      /* 섹션 패딩 조정 */
+      .section {
+        padding: 16px 16px;
+      }
+
+      .section-label {
+        margin-bottom: 14px;
+      }
+
+      .section h3 {
+        font-size: 13px;
+      }
+
+      /* 입력/버튼 터치 친화적 크기 */
+      .input-box {
+        padding: 12px 14px;
+        font-size: 14px;
+        min-height: 44px;
+      }
+
+      .btn {
+        padding: 12px 16px;
+        font-size: 13px;
+        min-height: 44px;
+      }
+
+      /* 파라미터 입력 영역 */
+      .param-grid {
+        gap: 6px;
+      }
+
+      .param-cell {
+        padding: 8px 10px;
+      }
+
+      .param-cell input {
+        font-size: 17px;
+        width: 56px;
+      }
+
+      .param-cell label {
+        font-size: 9px;
+      }
+
+      /* 학교/유치원 카드 */
+      .school-card,
+      .kinder-card {
+        padding: 11px 13px;
+      }
+
+      .card-title,
+      .kinder-card .kname {
+        font-size: 12.5px;
+      }
+
+      /* 분석 컨트롤 */
+      .control-row {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .control-row input,
+      .control-row select {
+        width: 100%;
+        min-height: 40px;
+        font-size: 13px;
+      }
+
+      .control-row label {
+        width: 100%;
+        font-size: 10px;
+      }
+
+      /* 지도 영역 — 전체 화면 */
+      #mapWrap {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 30px;
+        width: 100%;
+        height: auto;
+      }
+
+      /* 지적편집도 버튼 — 위치 조정 (시트와 겹치지 않게) */
+      .map-float-btn {
+        top: 10px;
+        right: 10px;
+      }
+
+      #cadastralBtn {
+        padding: 8px 12px;
+        font-size: 11px;
+      }
+
+      /* 상태바 슬림화 */
+      .status-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 7px 14px;
+        font-size: 10px;
+        z-index: 1001;
+        height: 30px;
+      }
+
+      /* 모드 배너 위치 조정 */
+      .mode-banner {
+        top: 56px;
+        font-size: 11.5px;
+        padding: 9px 16px;
+        max-width: 90%;
+        text-align: center;
+      }
+
+      /* 결과 박스 */
+      #resultBox>div {
+        padding: 12px !important;
+      }
+
+      /* 로딩 메시지 */
+      #loadingMsg {
+        font-size: 12px;
+        text-align: center;
+        padding: 0 20px;
+      }
+
+      /* 슬라이더 영역 */
+      #shadowTimeLabel {
+        font-size: 18px;
+      }
+
+      .slider-hint {
+        font-size: 10.5px;
+        padding: 8px 10px;
+      }
+
+      /* 범례 컴팩트 */
+      .legend {
+        gap: 6px 10px;
+        padding: 8px 10px;
+        font-size: 10px;
+      }
+
+      /* 지도 라벨 모바일 가독성 */
+      .map-label {
+        font-size: 10.5px;
+        padding: 3px 9px;
+      }
+
+      /* 시트 가시성을 위해 지도 클릭 영역 보존 */
+      .sidebar.collapsed .sidebar-content {
+        display: none;
+      }
+    }
+
+    /* 데스크탑에선 핸들 숨김 */
+    @media (min-width: 769px) {
+      .sheet-handle {
+        display: none;
+      }
+    }
+
+    /* 매우 작은 화면 (가로 360px 이하) */
+    @media (max-width: 360px) {
+      .sidebar {
+        height: 55vh;
+      }
+
+      .section {
+        padding: 14px 12px;
+      }
+
+      .param-cell input {
+        width: 48px;
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+
+<body onload="initMap()">
+
+  <!-- ─── HEADER (API 키 영역은 display:none 으로 숨김) ─── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">☀</div>
+      <span>교육환경 일조 시뮬레이터</span>
+      <span class="logo-meta">v1.0</span>
+    </div>
+    <div class="keys">
+      <div class="key-group">
+        <input type="password" id="kakaoKey" value="daedb9cca73372dcfaf626b39bef63f3" readonly />
+      </div>
+      <div class="key-group">
+        <input type="password" id="vworldKey" value="F781960D-00D4-30EB-A0EA-D4051FFAE5F4" readonly />
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="sidebar" id="sidebar">
+
+      <!-- 모바일 전용: 시트 핸들 -->
+      <div class="sheet-handle" id="sheetHandle">
+        <span class="sheet-handle-label" id="sheetLabel">정보 보기</span>
+      </div>
+
+      <div class="sidebar-content" id="sidebarContent">
+
+        <!-- ① 사업지 설정 -->
+        <div class="section">
+          <div class="section-label">
+            <span class="section-num">01</span>
+            <h3>신규 사업지 설정</h3>
+          </div>
+          <input class="input-box" id="addrInput" placeholder="사업지 주소 입력 후 Enter"
+            onkeydown="if(event.key==='Enter')doSearchProject()" />
+          <button class="btn btn-primary" onclick="doSearchProject()">주소 검색</button>
+
+          <div id="projectInfoBox" style="display:none;margin-top:14px;">
+            <div class="parcel-header">
+              <span>선택 필지</span>
+              <span id="parcelCountTxt">0필지</span>
+            </div>
+            <div id="parcelList" style="margin-bottom:8px;"></div>
+
+            <button class="btn accent-ghost" id="parcelModeBtn" onclick="toggleParcelMode()">
+              지도 클릭으로 필지 추가 / 해제
+            </button>
+
+            <div class="sep"></div>
+
+            <div class="combined-box" id="combinedBox">
+              <strong>총 대지면적</strong>: – &nbsp;|&nbsp; <strong>필지</strong>: –
+            </div>
+
+            <div class="param-grid">
+              <div class="param-cell">
+                <label>용적률 FAR</label>
+                <div class="prow">
+                  <input type="number" id="projectFAR" value="250" onchange="onParamChange()" />
+                  <span class="unit">%</span>
+                </div>
+              </div>
+              <div class="param-cell">
+                <label>건폐율 BCR</label>
+                <div class="prow">
+                  <input type="number" id="projectBCR" value="20" onchange="onParamChange()" />
+                  <span class="unit">%</span>
+                </div>
+              </div>
+              <div class="param-cell">
+                <label>동수</label>
+                <div class="prow">
+                  <input type="number" id="projectBuildings" value="5" min="1" max="30" onchange="onParamChange()" />
+                  <span class="unit">동</span>
+                </div>
+              </div>
+              <div class="param-cell">
+                <label>층수</label>
+                <div class="prow">
+                  <input type="number" id="projectFloors" value="13" onchange="onFloorsChange()" />
+                  <span class="unit">층</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="calc-box" id="calcBox">
+              <strong>연면적</strong>: – &nbsp;|&nbsp; <strong>동당 연면적</strong>: –<br>
+              <strong>동당 건폐</strong>: – &nbsp;|&nbsp; <strong>최고 높이</strong>: <span id="projectHeightTxt">–</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ② 학교 탐색 -->
+        <div class="section" id="schoolSection" style="display:none;">
+          <div class="section-label">
+            <span class="section-num purple">02</span>
+            <h3>주변 학교</h3>
+            <span class="section-subtitle">반경 500m</span>
+          </div>
+
+          <div class="zone-toggle">
+            <button class="ztbtn abs on" id="absBtn" onclick="toggleZone('abs')">절대 50m</button>
+            <button class="ztbtn rel on" id="relBtn" onclick="toggleZone('rel')">상대 200m</button>
+            <button class="ztbtn pln on" id="plannedBtn" onclick="toggleZone('planned')">예정부지</button>
+          </div>
+
+          <div class="legend">
+            <div class="leg-item">
+              <div class="leg-dot" style="background:#D64545;"></div>절대정화구역
+            </div>
+            <div class="leg-item">
+              <div class="leg-dot" style="background:#D97706;"></div>상대정화구역
+            </div>
+            <div class="leg-item">
+              <div class="leg-dot" style="background:#6B5BBF;"></div>기존학교
+            </div>
+            <div class="leg-item">
+              <div class="leg-dot" style="background:#D97706;opacity:.6;"></div>예정부지
+            </div>
+          </div>
+
+          <div id="schoolList"></div>
+
+          <button class="btn orange" onclick="togglePlannedMode()" id="addPlannedBtn">
+            학교 부지 직접 추가 (지도 클릭)
+          </button>
+        </div>
+
+        <!-- ★ 유치원 탐색 -->
+        <div class="section" id="kinderSection" style="display:none;">
+          <div class="section-label">
+            <span class="section-num" style="background:var(--green);">02-K</span>
+            <h3>주변 유치원</h3>
+          </div>
+          <div class="kinder-zone-toggle">
+            <button class="ztbtn abs on" id="kinderAbsBtn" onclick="toggleKinderZone('abs')">절대 50m</button>
+            <button class="ztbtn rel on" id="kinderRelBtn" onclick="toggleKinderZone('rel')">상대 200m</button>
+          </div>
+          <div class="legend">
+            <div class="leg-item">
+              <div class="leg-dot" style="background:#2E8B57;"></div>유치원
+            </div>
+            <div class="leg-item">
+              <div class="leg-dot" style="background:#D64545;"></div>절대보호구역
+            </div>
+            <div class="leg-item">
+              <div class="leg-dot" style="background:#D97706;"></div>상대보호구역
+            </div>
+            <div class="leg-item">
+              <div class="leg-dot" style="background:#2563A8;"></div>사용자 폴리곤
+            </div>
+          </div>
+          <div id="kinderList"></div>
+        </div>
+
+        <!-- 상대구역 인근 단지/건물 — 사이드바엔 숨김 (지도엔 표시) -->
+        <div class="section" id="nearbyComplexSection">
+          <div class="section-label">
+            <span class="section-num">02-B</span>
+            <h3>상대구역 인근 단지 · 건물</h3>
+          </div>
+          <div id="nearbyComplexList"></div>
+        </div>
+
+        <!-- ③ 분석 -->
+        <div class="section" id="analysisSection" style="display:none;">
+          <div class="section-label">
+            <span class="section-num violet">03</span>
+            <h3>일조 영향 평가</h3>
+          </div>
+
+          <div class="control-row">
+            <label>기준 날짜</label>
+            <input type="date" id="shadowDate" onchange="renderShadowsAt()" />
+          </div>
+          <div class="control-row">
+            <label>분석 간격</label>
+            <select id="gridSpacing">
+              <option value="3">3m (정밀)</option>
+              <option value="5" selected>5m (표준)</option>
+              <option value="10">10m (빠름)</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>평가 시간대</label>
+            <select id="schoolLevel">
+              <option value="13">초등/유치원 (09~13시)</option>
+              <option value="14">중학교 (09~14시)</option>
+              <option value="15">고등학교 (09~15시)</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>주변 건물 정보</label>
+            <button class="btn accent-ghost active" id="toggleComplexBtn" onclick="toggleComplexInfo()"
+              style="margin:0; width:160px; padding:6px; font-size:11.5px;">
+              지도 표시 ON
+            </button>
+          </div>
+          <div class="control-row">
+            <label>창문 분석</label>
+            <button class="btn accent-ghost active" id="windowToggleBtn" onclick="toggleWindowAnalysis()"
+              style="margin:0; width:160px; padding:6px; font-size:11.5px;">
+              창 분석 ON
+            </button>
+          </div>
+          <div class="control-row" style="margin-bottom: 12px;">
+            <label>창 간격</label>
+            <select id="windowSpacing">
+              <option value="1.5">1.5m (조밀)</option>
+              <option value="2.0">2.0m</option>
+              <option value="2.5" selected>2.5m (표준)</option>
+              <option value="3.0">3.0m</option>
+            </select>
+          </div>
+
+          <button class="btn purple" id="runAnalysisBtn" onclick="runImpactAnalysis()">
+            수인한도 격자 분석 실행
+          </button>
+
+          <div id="resultBox" style="margin-top:12px;"></div>
+
+          <div class="slider-wrap">
+            <div class="slider-header">
+              <span>실시간 그림자</span>
+              <span id="shadowTimeLabel">12:00</span>
+            </div>
+            <input type="range" id="shadowSlider" min="8" max="16" step="0.25" value="12"
+              oninput="onShadowSlider(this)" />
+            <div class="slider-ticks">
+              <span>08</span><span>10</span><span>12</span><span>14</span><span>16</span>
+            </div>
+            <div class="slider-hint">슬라이더를 움직이면 해당 시간의 그림자가 지도에 실시간으로 표시됩니다.</div>
+          </div>
+        </div>
+
+      </div> <!-- /sidebar-content -->
+    </div>
+
+    <div id="mapWrap">
+      <div id="map"></div>
+      <div class="map-float-btn">
+        <button id="cadastralBtn" onclick="toggleCadastral()">지적편집도 ON</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-bar" id="statusBar">주소를 입력하여 사업지를 검색하세요.</div>
+
+  <div class="loading" id="loading">
+    <div class="spin-wrap">
+      <div class="spin"></div>
+    </div>
+    <p id="loadingMsg">처리 중...</p>
+  </div>
+
+  <div class="mode-banner parcel-mode" id="parcelBanner" onclick="toggleParcelMode()">
+    필지 선택 모드 · 지도 클릭으로 추가/해제 · 여기 클릭하여 완료
+  </div>
+  <div class="mode-banner planned-mode" id="plannedBanner" onclick="togglePlannedMode()">
+    학교 부지 선택 모드 · 지도 클릭으로 추가/해제 · 여기 클릭하여 완료
+  </div>
+
+  <script>
+
+    // ════════════════════════════════════════════════════════
+    // 🔒 접근 제어: 비밀번호 + 만료일 검증
+    // ════════════════════════════════════════════════════════
+    (function accessControl() {
+      const EXPIRY_DATE = new Date('2026-06-30T23:59:59');
+      const CORRECT_PW = 'econex4451@';
+      const SESSION_KEY = '_econex_auth_v1';
+
+      // 1) 만료일 체크
+      const now = new Date();
+      if (now > EXPIRY_DATE) {
+        document.body.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Noto Sans KR',sans-serif;background:#FAFAF7;color:#161613;">
+            <div style="font-size:48px;margin-bottom:16px;">⏱</div>
+            <h1 style="font-size:22px;font-weight:700;margin-bottom:12px;">사용 기간 만료</h1>
+            <p style="font-size:14px;color:#5A5853;">본 시뮬레이터의 사용 기간이 만료되었습니다.</p>
+            <p style="font-size:13px;color:#918E85;margin-top:8px;">만료일: 2026년 6월 30일</p>
+            <p style="font-size:12px;color:#B8B5AC;margin-top:24px;">관리자에게 문의해주세요.</p>
+          </div>`;
+        throw new Error('Expired');
+      }
+
+      // 2) 세션 인증 확인
+      let authed = false;
+      try {
+        authed = sessionStorage.getItem(SESSION_KEY) === '1';
+      } catch (e) { authed = false; }
+
+      if (authed) return; // 이미 인증됨
+
+      // 3) 비밀번호 입력
+      const remainDays = Math.ceil((EXPIRY_DATE - now) / (1000 * 60 * 60 * 24));
+      let tries = 0;
+      while (tries < 3) {
+        const input = prompt(
+          `🔒 교육환경 일조 시뮬레이터 v1.0\n\n` +
+          `비밀번호를 입력해주세요.\n` +
+          `(사용 만료까지 ${remainDays}일 남음)\n\n` +
+          `시도: ${tries + 1}/3`
+        );
+        if (input === null) {
+          document.body.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:'Noto Sans KR',sans-serif;background:#FAFAF7;color:#161613;font-size:16px;">
+              접근이 취소되었습니다.
+            </div>`;
+          throw new Error('Cancelled');
+        }
+        if (input === CORRECT_PW) {
+          try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (e) { }
+          return;
+        }
+        tries++;
+        if (tries < 3) alert(`❌ 비밀번호가 올바르지 않습니다. (${3 - tries}회 남음)`);
+      }
+      document.body.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Noto Sans KR',sans-serif;background:#FAFAF7;color:#D64545;">
+          <div style="font-size:48px;margin-bottom:16px;">🚫</div>
+          <h1 style="font-size:22px;font-weight:700;margin-bottom:12px;">접근 차단</h1>
+          <p style="font-size:14px;color:#5A5853;">비밀번호 입력 3회 실패. 페이지를 다시 로드해주세요.</p>
+        </div>`;
+      throw new Error('Auth failed');
+    })();
+
+    // ════════════════════════════════════════════════════════
+    // 🌐 CORS 프록시 래퍼 (GitHub Pages 배포용)
+    // ════════════════════════════════════════════════════════
+    // 로컬 개발 시(localhost/127.0.0.1)는 프록시를 거치지 않고,
+    // GitHub Pages 등 운영 환경에서만 프록시를 자동 적용한다.
+    // 프록시 서비스가 다운되면 PROXY_LIST 다음 항목으로 자동 폴백.
+    const PROXY_LIST = [
+      url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    ];
+    const _IS_LOCAL = ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+
+    async function fetchViaProxy(originalUrl, options = {}) {
+      // 로컬에서는 직접 요청 (개발 시 확장 프로그램 사용 가정)
+      if (_IS_LOCAL) {
+        return fetch(originalUrl, options);
+      }
+      // 운영(GitHub Pages 등): 프록시 순차 시도
+      let lastErr = null;
+      for (const wrap of PROXY_LIST) {
+        try {
+          const proxiedUrl = wrap(originalUrl);
+          const resp = await fetch(proxiedUrl, options);
+          if (resp.ok) return resp;
+          lastErr = new Error(`HTTP ${resp.status}`);
+        } catch (e) { lastErr = e; }
+      }
+      throw lastErr || new Error('All proxies failed');
+    }
+
+    // 상수
+    const MIN_FOOTPRINT_AREA = 150;
+    const SETBACK_METERS = -3;
+
+    // 상태
+    let _overlayVisible = true;
+    let _winMarkers = [];
+    let _winAnalysisEnabled = true;
+    let map = null;
+    let _cadastralOn = true;
+    let _selectedParcels = [];
+    let _parcelIdCnt = 0;
+    let _combinedOutlinePoly = null;
+    let _projectGeom = null;
+    let _projectLat = 0, _projectLng = 0;
+    let _projectLabel = null;
+    let _parcelMode = false;
+    let _layoutFeats = [], _layoutPolys = [];
+    let _schools = [];
+    let _selectedSchool = null;
+    let _schoolIdCnt = 0;
+    let _addingMode = false;
+    let _absZonePolys = [], _relZonePolys = [];
+    let _showAbs = true, _showRel = true, _showPlanned = true;
+    let _shadowBldPolys = [], _gridPolys = [], _shadowCastPolys = [];
+    let _nearbyComplexPolys = [];
+    let _nearbyComplexLabels = [];
+    let _nearbyDistLines = [];
+    let _kindergartens = [];
+    let _kinderAbsPolys = [];
+    let _kinderRelPolys = [];
+    let _showKinderAbs = true;
+    let _showKinderRel = true;
+    let _kinderSidoCode = '';
+    let _kinderSggCode = '';
+    let drawingManager;
+    let _activeKinderDrawId = null;
+    let _showComplexInfo = true;
+
+    // ── 단지/주변건물 오버레이 초기화
+    function _clearComplexOverlays() {
+      _nearbyComplexPolys.forEach(p => p.setMap(null));
+      _nearbyComplexPolys = [];
+      _nearbyComplexLabels.forEach(l => l.setMap(null));
+      _nearbyComplexLabels = [];
+      _nearbyDistLines.forEach(l => l.setMap(null));
+      _nearbyDistLines = [];
+    }
+
+    // ── 초/중/고 보호구역 그리기
+    function _drawAllZones() {
+      _absZonePolys.forEach(p => p.setMap(null)); _absZonePolys = [];
+      _relZonePolys.forEach(p => p.setMap(null)); _relZonePolys = [];
+
+      _schools.forEach(s => {
+        try {
+          const abs = turf.buffer(s.geom, 0.05, { units: 'kilometers' });
+          const rel = turf.buffer(s.geom, 0.2, { units: 'kilometers' });
+          let donut; try { donut = turf.difference(rel, abs); } catch (e) { donut = rel; }
+          const toPath = cs => cs.map(c => new kakao.maps.LatLng(c[1], c[0]));
+
+          if (donut?.geometry) {
+            const rings = donut.geometry.type === 'Polygon' ? [donut.geometry.coordinates] : donut.geometry.coordinates;
+            rings.forEach(pc => {
+              const poly = new kakao.maps.Polygon({
+                map: (s.planned && !_showPlanned) ? null : (_showRel ? map : null),
+                path: pc.map(r => toPath(r)),
+                strokeWeight: 1, strokeColor: '#D97706', strokeOpacity: .6,
+                fillColor: '#D97706', fillOpacity: .045
+              });
+              _relZonePolys.push(poly);
+            });
+          }
+          if (abs?.geometry) {
+            const rings = abs.geometry.type === 'Polygon' ? [abs.geometry.coordinates] : abs.geometry.coordinates;
+            rings.forEach(pc => {
+              const poly = new kakao.maps.Polygon({
+                map: (s.planned && !_showPlanned) ? null : (_showAbs ? map : null),
+                path: pc.map(r => toPath(r)),
+                strokeWeight: 1, strokeColor: '#D64545', strokeOpacity: .8,
+                fillColor: '#D64545', fillOpacity: .08
+              });
+              _absZonePolys.push(poly);
+            });
+          }
+        } catch (e) { }
+      });
+    }
+
+    function toggleZone(type) {
+      if (type === 'abs') {
+        _showAbs = !_showAbs;
+        _absZonePolys.forEach(p => p.setMap(_showAbs ? map : null));
+        document.getElementById('absBtn').classList.toggle('on', _showAbs);
+      } else if (type === 'rel') {
+        _showRel = !_showRel;
+        _relZonePolys.forEach(p => p.setMap(_showRel ? map : null));
+        document.getElementById('relBtn').classList.toggle('on', _showRel);
+      } else if (type === 'planned') {
+        _showPlanned = !_showPlanned;
+        document.getElementById('plannedBtn').classList.toggle('on', _showPlanned);
+        _schools.forEach(s => {
+          if (s.planned) {
+            if (s.poly) s.poly.setMap(_showPlanned ? map : null);
+            if (s.label) s.label.setMap(_showPlanned ? map : null);
+          }
+        });
+        _drawAllZones();
+      }
+    }
+
+    function initMap() {
+      // 만료일 D-day 헤더 표시
+      try {
+        const expDate = new Date('2026-06-30T23:59:59');
+        const remainDays = Math.ceil((expDate - new Date()) / (1000 * 60 * 60 * 24));
+        const meta = document.querySelector('.logo-meta');
+        if (meta) {
+          if (remainDays <= 30) {
+            meta.textContent = `v1.0 · D-${remainDays}`;
+            meta.style.background = remainDays <= 7 ? '#FCEDED' : '#FDF0E0';
+            meta.style.color = remainDays <= 7 ? '#D64545' : '#D97706';
+            meta.style.borderColor = remainDays <= 7 ? '#D64545' : '#D97706';
+          }
+        }
+      } catch (e) { }
+      // 날짜 기본값
+      // 날짜 기본값 — 동지(12월 21일) 기준
+      // 일조권 분석은 태양 고도가 가장 낮은 동지를 표준으로 사용
+      const now = new Date();
+      const year = now.getMonth() >= 11 && now.getDate() > 21 ? now.getFullYear() + 1 : now.getFullYear();
+      document.getElementById('shadowDate').value = `${year}-12-21`;
+
+      window._vwKey = document.getElementById('vworldKey').value;
+      window._vwDomain = window.location.hostname || 'localhost';
+
+      const kakaoKey = document.getElementById('kakaoKey').value;
+      const s = document.createElement('script');
+      s.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoKey}&libraries=services,drawing&autoload=false`;
+      s.onload = () => {
+        kakao.maps.load(() => {
+          map = new kakao.maps.Map(document.getElementById('map'), {
+            center: new kakao.maps.LatLng(37.5665, 126.9780), level: 5
+          });
+          map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+
+
+          drawingManager = new kakao.maps.drawing.DrawingManager({
+            map: map,
+            drawingMode: [kakao.maps.drawing.OverlayType.POLYGON],
+            guideTooltip: ['draw', 'drag', 'edit'],
+            polygonOptions: {
+              strokeWeight: 2, strokeColor: '#2563A8', strokeOpacity: 0.9,
+              fillColor: '#2563A8', fillOpacity: 0.25
+            }
+          });
+
+          drawingManager.addListener('drawend', async function (data) {
+            if (data.overlayType !== kakao.maps.drawing.OverlayType.POLYGON || !_activeKinderDrawId) return;
+
+            let path = data.target.getPath();
+
+            // ★ 가장 확실한 방어 코드: path가 이중/삼중 배열일 경우 완전히 벗겨냄
+            while (path.length > 0 && Array.isArray(path[0])) {
+              path = path[0];
+            }
+
+            if (!path || path.length < 3) {
+              drawingManager.remove(data.target);
+              _activeKinderDrawId = null;
+              return setStatus('폴리곤 그리기 실패 (점이 3개 이상 필요합니다)');
+            }
+
+            // 안전하게 좌표 추출
+            const coords = path.map(p => {
+              // 카카오맵 LatLng 객체인 경우
+              if (typeof p.getLng === 'function') return [p.getLng(), p.getLat()];
+              // 일반 좌표 객체인 경우 (만약을 위한 대비)
+              return [p.x || p.lng, p.y || p.lat];
+            });
+            coords.push(coords[0]); // 폴리곤 닫기 (첫 점과 끝 점 연결)
+
+            const k = _kindergartens.find(x => x.id === _activeKinderDrawId);
+            if (k) {
+              k.geom = turf.polygon([coords]);
+              k.isCustomGeom = true;
+
+              if (k.poly) {
+                k.poly.setOptions({
+                  strokeColor: '#2563A8', fillColor: '#2563A8', fillOpacity: 0.25, strokeOpacity: 0.9
+                });
+                k.poly.setPath(path);
+              }
+
+              // 새 폴리곤 기준으로 보호구역 갱신
+              _drawKinderZones();
+
+              try {
+                const centroid = turf.centroid(k.geom).geometry.coordinates;
+                k.lat = centroid[1]; k.lng = centroid[0];
+                if (k.label) k.label.setPosition(new kakao.maps.LatLng(centroid[1], centroid[0]));
+                k.dist = Math.round(turf.distance(
+                  turf.point([_projectLng, _projectLat]),
+                  turf.point([centroid[0], centroid[1]]),
+                  { units: 'meters' }
+                ));
+              } catch (e) { }
+
+              renderKinderList();
+
+              // 선택된 유치원이라면 일조분석 재실행
+              if (_selectedSchool && _selectedSchool.isKinder && _selectedSchool.id === k.id) {
+                await _prepareAnalysisFor(k);
+              }
+              setStatus(`${k.name} 부지 지정 완료 · 보호구역/분석 갱신됨`);
+            }
+
+            drawingManager.remove(data.target);
+            _activeKinderDrawId = null;
+          });
+        });
+      };
+      document.head.appendChild(s);
+    }
+    // ════════════════════════════════════════════════════════
+    // ★ 새 기능: 유치원 부지 클릭으로 지적도 자동 가져오기
+    // ════════════════════════════════════════════════════════
+    let _activeKinderParcelId = null;
+
+    function startKinderParcelMode(id) {
+      if (_parcelMode) forceOffParcelMode();
+      if (_addingMode) forceOffPlannedMode();
+
+      const k = _kindergartens.find(x => x.id === id);
+      if (!k) return;
+      _activeKinderParcelId = id;
+      setStatus(`[${k.name}] 모드 활성화: 지도에서 해당 유치원의 건물이나 부지를 클릭하세요.`);
+      kakao.maps.event.addListener(map, 'click', _onKinderParcelClick);
+    }
+
+    async function _onKinderParcelClick(me) {
+      if (!_activeKinderParcelId) return;
+      const lat = me.latLng.getLat(), lng = me.latLng.getLng();
+      kakao.maps.event.removeListener(map, 'click', _onKinderParcelClick);
+
+      const k = _kindergartens.find(x => x.id === _activeKinderParcelId);
+      _activeKinderParcelId = null;
+      if (!k) return;
+
+      showLoading(true, 'VWorld 지적 정보 불러오는 중...');
+      try {
+        const pf = await fetchVWorldParcel(lat, lng);
+        if (!pf || !pf.geometry) {
+          setStatus('해당 위치의 대지경계선을 찾을 수 없습니다. 직접 그리기를 이용해주세요.');
+          return;
+        }
+
+        k.geom = pf.geometry.type === 'Polygon' ? turf.polygon(pf.geometry.coordinates) : turf.multiPolygon(pf.geometry.coordinates);
+        k.isCustomGeom = true;
+
+        const paths = pf.geometry.type === 'Polygon'
+          ? [pf.geometry.coordinates[0].map(c => new kakao.maps.LatLng(c[1], c[0]))]
+          : pf.geometry.coordinates.map(p => p[0].map(c => new kakao.maps.LatLng(c[1], c[0])));
+
+        k.poly.setOptions({ strokeColor: '#2563A8', fillColor: '#2563A8', fillOpacity: 0.25, strokeOpacity: 0.9 });
+        k.poly.setPath(paths);
+
+        _drawKinderZones();
+
+        try {
+          const centroid = turf.centroid(k.geom).geometry.coordinates;
+          k.lat = centroid[1]; k.lng = centroid[0];
+          if (k.label) k.label.setPosition(new kakao.maps.LatLng(centroid[1], centroid[0]));
+          k.dist = Math.round(turf.distance(turf.point([_projectLng, _projectLat]), turf.point([centroid[0], centroid[1]]), { units: 'meters' }));
+        } catch (e) { }
+
+        renderKinderList();
+
+        if (_selectedSchool && _selectedSchool.id === k.id && _selectedSchool.isKinder) {
+          await _prepareAnalysisFor(k);
+        }
+        setStatus(`[${k.name}] 클릭한 지적 경계선으로 부지 반영 완료`);
+      } catch (e) {
+        setStatus('지적 정보 연동 중 오류가 발생했습니다.');
+      } finally {
+        showLoading(false);
+      }
+    }
+    function toggleCadastral() {
+      _cadastralOn = !_cadastralOn;
+      if (_cadastralOn) map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+      else map.removeOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+      const btn = document.getElementById('cadastralBtn');
+      btn.textContent = `지적편집도 ${_cadastralOn ? 'ON' : 'OFF'}`;
+      btn.style.color = _cadastralOn ? 'var(--ink)' : 'var(--ink-3)';
+      btn.style.borderColor = _cadastralOn ? 'var(--line-2)' : 'var(--line)';
+    }
+
+    // 지적편집도 타일(베이스가 아닌 오버레이 레이어)만 회색 필터 해제
+    function _restoreCadastralColor() {
+      const mapEl = document.getElementById('map');
+      if (!mapEl) return;
+      // 카카오맵 구조: 첫 번째 자식 div가 베이스, 그 이후 div들이 오버레이
+      const layers = mapEl.querySelectorAll(':scope > div > div');
+      layers.forEach((layer, idx) => {
+        // 첫 번째 레이어(베이스 타일)는 건드리지 않음
+        if (idx === 0) return;
+        // 나머지 레이어 안의 img들은 컬러로 복원
+        const imgs = layer.querySelectorAll('img');
+        imgs.forEach(img => { img.style.filter = 'none'; });
+      });
+    }
+
+    async function doSearchProject() {
+      if (!map) return;
+      const addr = document.getElementById('addrInput').value.trim();
+      if (!addr) return alert('사업지 주소를 입력해주세요.');
+      showLoading(true, '좌표 및 지적 추출 중...');
+      clearAll();
+      try {
+        const geocoder = new kakao.maps.services.Geocoder();
+        const coord = await new Promise(resolve => {
+          geocoder.addressSearch(addr, (res, st) => {
+            if (st === kakao.maps.services.Status.OK) {
+              const r = res[0];
+              const bCode = r.address?.b_code || '';
+              resolve({ lat: +r.y, lng: +r.x, bCode: bCode });
+            } else {
+              new kakao.maps.services.Places().keywordSearch(addr, (r2, s2) => {
+                resolve(s2 === kakao.maps.services.Status.OK ? { lat: +r2[0].y, lng: +r2[0].x, bCode: '' } : null);
+              });
+            }
+          });
+        });
+
+        if (!coord) { showLoading(false); return alert('주소를 찾을 수 없습니다.'); }
+
+        if (!coord.bCode) {
+          coord.bCode = await new Promise(resolve => {
+            geocoder.coord2RegionCode(coord.lng, coord.lat, (res, st) => {
+              if (st === kakao.maps.services.Status.OK) {
+                const legalRegion = res.find(r => r.region_type === 'B');
+                resolve(legalRegion ? legalRegion.code : '');
+              } else resolve('');
+            });
+          });
+        }
+
+        _kinderSidoCode = coord.bCode.substring(0, 2);
+        _kinderSggCode = coord.bCode.substring(0, 5);
+
+        map.setCenter(new kakao.maps.LatLng(coord.lat, coord.lng));
+        map.setLevel(4);
+        const pf = await fetchVWorldParcel(coord.lat, coord.lng);
+        if (!pf) { showLoading(false); return alert('해당 위치의 지적도를 찾을 수 없습니다.'); }
+        _addParcel(pf, coord.lat, coord.lng);
+        _updateCombinedGeom();
+        document.getElementById('projectInfoBox').style.display = 'block';
+        onParamChange();
+        await generateSmartLayout();
+        await findNearbySchools(coord.lat, coord.lng);
+        await findNearbyKindergartens(coord.lat, coord.lng, _kinderSidoCode, _kinderSggCode, 500);
+      } catch (e) { console.error(e); alert('오류 발생'); }
+      finally { showLoading(false); }
+    }
+
+    function _addParcel(pf, lat, lng) {
+      const geom = pf.geometry.type === 'Polygon'
+        ? turf.polygon(pf.geometry.coordinates)
+        : turf.multiPolygon(pf.geometry.coordinates);
+      const area = Math.round(turf.area(geom));
+      const paths = pf.geometry.type === 'Polygon'
+        ? [pf.geometry.coordinates[0].map(c => new kakao.maps.LatLng(c[1], c[0]))]
+        : pf.geometry.coordinates.map(p => p[0].map(c => new kakao.maps.LatLng(c[1], c[0])));
+      const poly = new kakao.maps.Polygon({
+        map, path: paths,
+        strokeWeight: 2, strokeColor: '#FEE500', strokeOpacity: .9,
+        fillColor: '#FEE500', fillOpacity: .15
+      });
+      const id = ++_parcelIdCnt;
+      _selectedParcels.push({ geom, poly, lat, lng, area, id });
+    }
+
+    function _removeParcel(id) {
+      const idx = _selectedParcels.findIndex(p => p.id === id);
+      if (idx === -1) return;
+      _selectedParcels[idx].poly.setMap(null);
+      _selectedParcels.splice(idx, 1);
+      _updateCombinedGeom();
+      _refreshCalcBox();
+      _debouncedLayout();
+    }
+
+    function _updateCombinedGeom() {
+      if (_combinedOutlinePoly) { _combinedOutlinePoly.setMap(null); _combinedOutlinePoly = null; }
+      if (_projectLabel) { _projectLabel.setMap(null); _projectLabel = null; }
+      if (!_selectedParcels.length) { _projectGeom = null; _renderParcelList(); return; }
+      let combined = _selectedParcels[0].geom;
+      for (let i = 1; i < _selectedParcels.length; i++) {
+        try { combined = turf.union(combined, _selectedParcels[i].geom); } catch (e) { }
+      }
+      _projectGeom = combined;
+      const c = turf.centroid(combined);
+      _projectLat = c.geometry.coordinates[1];
+      _projectLng = c.geometry.coordinates[0];
+      if (_selectedParcels.length > 1) {
+        const polys = combined.geometry.type === 'Polygon' ? [combined.geometry.coordinates] : combined.geometry.coordinates;
+        const paths = polys.map(pc => pc[0].map(c2 => new kakao.maps.LatLng(c2[1], c2[0])));
+        _combinedOutlinePoly = new kakao.maps.Polygon({
+          map, path: paths,
+          strokeWeight: 3, strokeColor: '#FEE500', strokeOpacity: 1,
+          fillColor: '#0000ff', fillOpacity: 0.01
+        });
+      }
+      _projectLabel = new kakao.maps.CustomOverlay({
+        map, position: new kakao.maps.LatLng(_projectLat, _projectLng), yAnchor: 0.5,
+        content: `<div class="map-label project">사업지${_selectedParcels.length > 1 ? ` · ${_selectedParcels.length}필지` : ''}</div>`
+      });
+      _renderParcelList();
+      _updateCombinedBox();
+    }
+
+    function _renderParcelList() {
+      document.getElementById('parcelCountTxt').textContent = `${_selectedParcels.length}필지`;
+      document.getElementById('parcelList').innerHTML = _selectedParcels.map((p, i) => `
+        <div class="parcel-item">
+          <div>
+            <div class="pname">필지 ${i + 1}</div>
+            <div class="parea">${p.area.toLocaleString()} ㎡</div>
+          </div>
+          <button class="del-btn" onclick="_removeParcel(${p.id})">삭제</button>
+        </div>
+      `).join('');
+    }
+
+    function _updateCombinedBox() {
+      if (!_projectGeom) return;
+      const totalArea = Math.round(turf.area(_projectGeom));
+      document.getElementById('combinedBox').innerHTML =
+        `<strong>총 대지면적</strong>: ${totalArea.toLocaleString()} ㎡ &nbsp;|&nbsp; <strong>필지</strong>: ${_selectedParcels.length}개`;
+    }
+
+    function forceOffParcelMode() {
+      _parcelMode = false;
+      const btn = document.getElementById('parcelModeBtn');
+      const banner = document.getElementById('parcelBanner');
+      if (btn) { btn.textContent = '지도 클릭으로 필지 추가 / 해제'; btn.classList.remove('active'); }
+      if (banner) banner.classList.remove('on');
+      if (map) kakao.maps.event.removeListener(map, 'click', _onParcelMapClick);
+    }
+
+    function forceOffPlannedMode() {
+      _addingMode = false;
+      const btn = document.getElementById('addPlannedBtn');
+      const banner = document.getElementById('plannedBanner');
+      if (btn) { btn.textContent = '학교 부지 직접 추가 (지도 클릭)'; btn.classList.remove('active'); }
+      if (banner) banner.classList.remove('on');
+      if (map) kakao.maps.event.removeListener(map, 'click', _onPlannedMapClick);
+    }
+
+    function toggleParcelMode() {
+      if (_addingMode) forceOffPlannedMode();
+      _parcelMode = !_parcelMode;
+      const btn = document.getElementById('parcelModeBtn');
+      const banner = document.getElementById('parcelBanner');
+      if (_parcelMode) {
+        btn.textContent = '✓ 사업지 선택 완료 (클릭)';
+        btn.classList.add('active');
+        banner.classList.add('on');
+        kakao.maps.event.addListener(map, 'click', _onParcelMapClick);
+      } else {
+        btn.textContent = '지도 클릭으로 필지 추가 / 해제';
+        btn.classList.remove('active');
+        banner.classList.remove('on');
+        kakao.maps.event.removeListener(map, 'click', _onParcelMapClick);
+      }
+    }
+
+    function togglePlannedMode() {
+      if (!map) return alert('사업지를 먼저 검색해주세요.');
+      if (_parcelMode) forceOffParcelMode();
+      _addingMode = !_addingMode;
+      const btn = document.getElementById('addPlannedBtn');
+      const banner = document.getElementById('plannedBanner');
+      if (_addingMode) {
+        btn.textContent = '✓ 학교 부지 선택 완료 (클릭)';
+        btn.classList.add('active');
+        banner.classList.add('on');
+        kakao.maps.event.addListener(map, 'click', _onPlannedMapClick);
+      } else {
+        btn.textContent = '학교 부지 직접 추가 (지도 클릭)';
+        btn.classList.remove('active');
+        banner.classList.remove('on');
+        kakao.maps.event.removeListener(map, 'click', _onPlannedMapClick);
+      }
+    }
+
+    async function _onParcelMapClick(me) {
+      if (!_parcelMode) return;
+      const lat = me.latLng.getLat(), lng = me.latLng.getLng();
+      const pt = turf.point([lng, lat]);
+      const hitSchool = _schools.some(s => { try { return turf.booleanPointInPolygon(pt, s.geom); } catch (e) { return false; } });
+      if (hitSchool) return setStatus('학교 부지는 사업지로 선택할 수 없습니다.');
+      const existIdx = _selectedParcels.findIndex(p => { try { return turf.booleanPointInPolygon(pt, p.geom); } catch (e) { return false; } });
+      if (existIdx !== -1) { _removeParcel(_selectedParcels[existIdx].id); return; }
+      showLoading(true, '필지 지적 조회 중...');
+      const pf = await fetchVWorldParcel(lat, lng);
+      showLoading(false);
+      if (!pf) return setStatus('해당 위치에서 지적 정보를 찾을 수 없습니다.');
+      const geom = pf.geometry.type === 'Polygon' ? turf.polygon(pf.geometry.coordinates) : turf.multiPolygon(pf.geometry.coordinates);
+      const overlapSchool = _schools.some(s => { try { return turf.booleanIntersects(s.geom, geom); } catch (e) { return false; } });
+      if (overlapSchool) return setStatus('선택한 필지가 학교 부지와 겹칩니다.');
+      const already = _selectedParcels.some(p => {
+        try { const inter = turf.intersect(p.geom, geom); return inter && turf.area(inter) > turf.area(geom) * 0.8; } catch (e) { return false; }
+      });
+      if (already) return;
+      _addParcel(pf, lat, lng);
+      _updateCombinedGeom();
+      _refreshCalcBox();
+      _debouncedLayout();
+      setStatus(`필지 추가 완료 · 총 ${_selectedParcels.length}필지`);
+    }
+
+    async function _onPlannedMapClick(me) {
+      if (!_addingMode) return;
+      const lat = me.latLng.getLat(), lng = me.latLng.getLng();
+      const pt = turf.point([lng, lat]);
+      const hitProject = _selectedParcels.some(p => { try { return turf.booleanPointInPolygon(pt, p.geom); } catch (e) { return false; } });
+      if (hitProject) return setStatus('사업지 필지는 학교 부지로 선택할 수 없습니다.');
+      const existIdx = _schools.findIndex(s => { try { return turf.booleanPointInPolygon(pt, s.geom); } catch (e) { return false; } });
+      if (existIdx !== -1) { deleteSchool(_schools[existIdx].id); return; }
+      showLoading(true, '예정 부지 지적 조회 중...');
+      try {
+        const pf = await fetchVWorldParcel(lat, lng);
+        let geom, rawCoords, type;
+        if (pf && pf.geometry) {
+          geom = pf.geometry.type === 'Polygon' ? turf.polygon(pf.geometry.coordinates) : turf.multiPolygon(pf.geometry.coordinates);
+          rawCoords = pf.geometry.coordinates; type = pf.geometry.type;
+        } else {
+          geom = turf.buffer(turf.point([lng, lat]), 0.1, { units: 'kilometers' });
+          rawCoords = geom.geometry.coordinates; type = 'Polygon';
+        }
+        const overlap = _schools.some(s => { try { return turf.booleanIntersects(s.geom, geom); } catch (e) { return false; } });
+        if (overlap) return setStatus('이미 등록된 학교 부지와 겹칩니다.');
+        const dist = turf.distance(turf.point([_projectLng || lng, _projectLat || lat]), turf.point([lng, lat]), { units: 'meters' });
+        const school = {
+          id: ++_schoolIdCnt, name: `학교(예정)부지 ${_schools.filter(s => s.planned).length + 1}호`,
+          lat, lng, dist: Math.round(dist), geom, endH: 13, rawCoords, type,
+          planned: true, buildings: [], poly: null, label: null
+        };
+        _schools.push(school);
+        _drawSchoolOnMap(school);
+        _drawAllZones();
+        renderSchoolList();
+        document.getElementById('schoolSection').style.display = 'block';
+        setStatus(`학교 부지 추가 완료 · 총 ${_schools.length}개`);
+      } catch (e) { console.error(e); }
+      finally { showLoading(false); }
+    }
+
+    function onParamChange() { _refreshCalcBox(); _debouncedLayout(); }
+    function onFloorsChange() { _refreshCalcBox(); _debouncedLayout(); }
+
+    function _refreshCalcBox() {
+      if (!_projectGeom) return;
+      const far = parseFloat(document.getElementById('projectFAR').value) || 250;
+      const bcr = parseFloat(document.getElementById('projectBCR').value) || 20;
+      const floors = parseInt(document.getElementById('projectFloors').value) || 1;
+      const numBld = parseInt(document.getElementById('projectBuildings').value) || 1;
+      const siteArea = turf.area(_projectGeom);
+      const height = floors * 3;
+      const actualBcr = far / floors;
+      document.getElementById('projectHeightTxt').textContent = `${height}m (${floors}층)`;
+      document.getElementById('calcBox').innerHTML =
+        `<strong>연면적</strong>: ${Math.round(siteArea * far / 100).toLocaleString()}㎡ &nbsp;|&nbsp; ` +
+        `<strong>동당 연면적</strong>: ${Math.round(siteArea * far / 100 / numBld).toLocaleString()}㎡<br>` +
+        `<strong>실제 건폐율</strong>: <span style="color:var(--blue); font-size:13px; font-weight:700;">${actualBcr.toFixed(1)}%</span> <span style="font-size:10.5px; color:var(--ink-4);">(법정 ${bcr}%)</span> &nbsp;|&nbsp; ` +
+        `<strong>최고 높이</strong>: <span id="projectHeightTxt">${height}m (${floors}층)</span>`;
+    }
+
+    let _layoutTimer = null;
+    function _debouncedLayout() {
+      clearTimeout(_layoutTimer);
+      _layoutTimer = setTimeout(async () => {
+        if (!_projectGeom) {
+          _layoutPolys.forEach(p => p.setMap(null));
+          _layoutPolys = [];
+          _layoutFeats = [];
+          if (_selectedSchool) renderShadowsAt();
+          return;
+        }
+        showLoading(true, '다중 필지 기반 K-Means 단지 배치 중...');
+        await generateSmartLayout();
+        showLoading(false);
+        if (_selectedSchool) renderShadowsAt();
+      }, 500);
+    }
+
+    async function generateSmartLayout() {
+      if (!_projectGeom) return;
+      const far = parseFloat(document.getElementById('projectFAR').value) || 250;
+      const maxBcr = parseFloat(document.getElementById('projectBCR').value) || 20;
+      let floors = parseInt(document.getElementById('projectFloors').value) || 13;
+      let numBld = parseInt(document.getElementById('projectBuildings').value) || 5;
+      const siteArea = turf.area(_projectGeom);
+
+      let actualBcr = far / floors;
+      if (actualBcr > maxBcr) {
+        const minRequiredFloors = Math.ceil(far / maxBcr);
+        alert(`해당 용적률(${far}%)을 달성하려면 법정 건폐율(${maxBcr}%)을 초과합니다. 최소 ${minRequiredFloors}층 이상으로 자동 상향 조정됩니다.`);
+        floors = minRequiredFloors;
+        document.getElementById('projectFloors').value = floors;
+        actualBcr = far / floors;
+      }
+
+      const maxFootprint = siteArea * (actualBcr / 100);
+      const safeMaxBldgs = Math.max(1, Math.floor(maxFootprint / MIN_FOOTPRINT_AREA));
+
+      if (numBld > safeMaxBldgs) {
+        alert(`건물의 최소 바닥면적 확보를 위해, 허용치인 ${safeMaxBldgs}동으로 자동 보정됩니다.`);
+        numBld = safeMaxBldgs;
+        document.getElementById('projectBuildings').value = safeMaxBldgs;
+      }
+
+      _refreshCalcBox();
+
+      const height = floors * 3;
+      const fpPerBld = maxFootprint / numBld;
+
+      let buildableGeom = _projectGeom;
+      try {
+        const buffered = turf.buffer(_projectGeom, SETBACK_METERS, { units: 'meters' });
+        if (buffered && buffered.geometry && turf.area(buffered) > 10) buildableGeom = buffered;
+      } catch (e) { console.error("Setback 에러:", e); }
+
+      _layoutPolys.forEach(p => p.setMap(null)); _layoutPolys = []; _layoutFeats = [];
+      _layoutFeats = buildingGridKMeans(buildableGeom, numBld, fpPerBld, height, _projectLat);
+      _layoutFeats.forEach(f => {
+        const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+        polys.forEach(pc => {
+          const paths = pc.map(ring => ring.map(c => new kakao.maps.LatLng(c[1], c[0])));
+          const poly = new kakao.maps.Polygon({
+            map, path: paths, strokeWeight: 2, strokeColor: '#FEE500', strokeOpacity: 1,
+            fillColor: '#FEE500', fillOpacity: .6
+          });
+          _layoutPolys.push(poly);
+        });
+      });
+    }
+
+    function buildingGridKMeans(siteGeom, numBld, fpPerBld, height, lat) {
+      const result = [];
+      try {
+        const cosLat = Math.cos(lat * Math.PI / 180);
+        const RATIO = 2.5;
+        const bldWm = Math.sqrt(fpPerBld * RATIO);
+        const bldDm = Math.sqrt(fpPerBld / RATIO);
+        const bldWDeg = bldWm / (111320 * cosLat);
+        const bldDDeg = bldDm / 110540;
+        const siteM2 = turf.area(siteGeom);
+        const setKm = Math.min(0.005, Math.max(0.002, siteM2 * 5e-7));
+        let inner;
+        try { inner = turf.buffer(siteGeom, -setKm, { units: 'kilometers' }) || siteGeom; } catch (e) { inner = siteGeom; }
+        const gridSpacingKm = Math.min(bldWDeg * 111 * cosLat, bldDDeg * 111) * 0.5;
+        const bbox = turf.bbox(inner);
+        let pts;
+        try {
+          pts = turf.pointGrid(bbox, Math.max(0.003, gridSpacingKm), { units: 'kilometers', mask: inner }).features;
+        } catch (e) { pts = []; }
+        if (pts.length < numBld * 3) {
+          try {
+            const randPts = turf.randomPoint(numBld * 10, { bbox }).features
+              .filter(pt => { try { return turf.booleanPointInPolygon(pt, inner); } catch (e) { return false; } });
+            pts = [...pts, ...randPts];
+          } catch (e) { }
+        }
+        let centroids = [];
+        if (numBld === 1 || pts.length < numBld) {
+          centroids.push(turf.centroid(inner));
+        } else {
+          const fc = turf.featureCollection(pts);
+          const clustered = turf.clustersKmeans(fc, { numberOfClusters: numBld });
+          const groups = {};
+          clustered.features.forEach(f => { const cId = f.properties.cluster; if (!groups[cId]) groups[cId] = []; groups[cId].push(f); });
+          Object.keys(groups).forEach(cId => {
+            const clusterPts = groups[cId];
+            const center = turf.centroid(turf.featureCollection(clusterPts));
+            let closestPt = clusterPts[0], minDist = Infinity;
+            clusterPts.forEach(pt => { const d = turf.distance(center, pt); if (d < minDist) { minDist = d; closestPt = pt; } });
+            centroids.push(closestPt);
+          });
+        }
+        const actualCount = Math.min(numBld, centroids.length);
+        for (let i = 0; i < actualCount; i++) {
+          const cx = centroids[i].geometry.coordinates[0];
+          const cy = centroids[i].geometry.coordinates[1];
+          const hw = bldWDeg / 2, hd = bldDDeg / 2;
+          const rect = turf.polygon([[
+            [cx - hw, cy - hd], [cx + hw, cy - hd], [cx + hw, cy + hd], [cx - hw, cy + hd], [cx - hw, cy - hd]
+          ]]);
+          let bld = null;
+          try {
+            const cl = turf.intersect(rect, inner);
+            if (cl && turf.area(cl) > fpPerBld * 0.1) {
+              const isOverlapping = result.some(existingBld => turf.booleanIntersects(existingBld, cl));
+              if (!isOverlapping) bld = cl;
+            }
+          } catch (e) { }
+          if (bld) { bld._height = height; result.push(bld); }
+        }
+        if (!result.length) { inner._height = height; result.push(inner); }
+      } catch (e) { console.error('buildingGridKMeans error:', e); siteGeom._height = height; result.push(siteGeom); }
+      return result;
+    }
+
+    async function findNearbySchools(lat, lng) {
+      setLoadingMsg('주변 반경 500m 학교 탐색 중...');
+      const ps = new kakao.maps.services.Places();
+      const kakaoSchools = await new Promise(resolve => {
+        ps.categorySearch('SC4', (data, status) =>
+          resolve(status === kakao.maps.services.Status.OK ? data : []),
+          { location: new kakao.maps.LatLng(lat, lng), radius: 500 }
+        );
+      });
+      const plannedKw = ['신설학교', '학교예정', '예정학교'];
+      const plannedRaw = [];
+      for (const kw of plannedKw) {
+        const r = await new Promise(resolve => {
+          ps.keywordSearch(kw, (data, status) => resolve(status === kakao.maps.services.Status.OK ? data : []),
+            { location: new kakao.maps.LatLng(lat, lng), radius: 600 });
+        });
+        r.forEach(item => { if (parseFloat(item.distance) <= 500 && !plannedRaw.find(x => x.id === item.id)) plannedRaw.push(item); });
+      }
+      _schools.forEach(s => { if (s.poly) s.poly.setMap(null); if (s.label) s.label.setMap(null); });
+      _schools = [];
+      _absZonePolys.forEach(p => p.setMap(null)); _absZonePolys = [];
+      _relZonePolys.forEach(p => p.setMap(null)); _relZonePolys = [];
+      const addedSchoolNames = new Set();
+      for (const ks of kakaoSchools) {
+        // ★ 수정된 부분: 학교만 남기고 유치원/어린이집 등을 철저히 배제합니다.
+        if (!ks.place_name.match(/학교/)) continue;
+        if (ks.place_name.match(/유치원|어린이집|체육관|경비실|별관|야구장|강당|기숙사|주차장|식당/)) continue;
+
+        const baseNameMatch = ks.place_name.match(/^(.+?[초중고등학교])/);
+        const baseName = baseNameMatch ? baseNameMatch[1].trim() : ks.place_name.trim();
+        if (addedSchoolNames.has(baseName)) continue;
+        addedSchoolNames.add(baseName);
+
+        const sLat = parseFloat(ks.y), sLng = parseFloat(ks.x);
+        const pf = await fetchVWorldParcel(sLat, sLng);
+        if (!pf || !pf.geometry) continue;
+        const geom = pf.geometry.type === 'Polygon' ? turf.polygon(pf.geometry.coordinates) : turf.multiPolygon(pf.geometry.coordinates);
+        const dist = turf.distance(turf.point([lng, lat]), turf.point([sLng, sLat]), { units: 'meters' });
+
+        let endH = 15;
+        if (ks.place_name.includes('초등')) endH = 13;
+        else if (ks.place_name.includes('중학')) endH = 14;
+        const school = { id: ++_schoolIdCnt, name: ks.place_name, lat: sLat, lng: sLng, dist: Math.round(dist), geom, endH, rawCoords: pf.geometry.coordinates, type: pf.geometry.type, planned: false, buildings: [], poly: null, label: null };
+        _schools.push(school);
+        _drawSchoolOnMap(school);
+      }
+      for (const pr of plannedRaw) {
+        if (_schools.find(s => Math.abs(s.lat - parseFloat(pr.y)) < 0.0002 && Math.abs(s.lng - parseFloat(pr.x)) < 0.0002)) continue;
+        const sLat = parseFloat(pr.y), sLng = parseFloat(pr.x);
+        const pf = await fetchVWorldParcel(sLat, sLng);
+        let geom, rawCoords, type;
+        if (pf && pf.geometry) {
+          geom = pf.geometry.type === 'Polygon' ? turf.polygon(pf.geometry.coordinates) : turf.multiPolygon(pf.geometry.coordinates);
+          rawCoords = pf.geometry.coordinates; type = pf.geometry.type;
+        } else {
+          geom = turf.buffer(turf.point([sLng, sLat]), 0.1, { units: 'kilometers' });
+          rawCoords = geom.geometry.coordinates; type = 'Polygon';
+        }
+        const dist = turf.distance(turf.point([lng, lat]), turf.point([sLng, sLat]), { units: 'meters' });
+        const school = { id: ++_schoolIdCnt, name: pr.place_name + ' (예정)', lat: sLat, lng: sLng, dist: Math.round(dist), geom, endH: 13, rawCoords, type, planned: true, buildings: [], poly: null, label: null };
+        _schools.push(school);
+        _drawSchoolOnMap(school);
+      }
+      _schools.sort((a, b) => a.dist - b.dist);
+      _drawAllZones();
+      renderSchoolList();
+      if (_schools.length) {
+        document.getElementById('schoolSection').style.display = 'block';
+        setStatus(`사업지 반경 500m 내 학교 ${_schools.length}개 · 예정 ${_schools.filter(s => s.planned).length}개 포함`);
+      } else { setStatus('반경 500m 이내 학교 없음'); }
+    }
+
+    function _drawSchoolOnMap(s) {
+      const color = s.planned ? '#D97706' : '#6B5BBF';
+      const paths = s.type === 'Polygon'
+        ? [s.rawCoords[0].map(c => new kakao.maps.LatLng(c[1], c[0]))]
+        : s.rawCoords.map(p => p[0].map(c => new kakao.maps.LatLng(c[1], c[0])));
+      const poly = new kakao.maps.Polygon({
+        map: (s.planned && !_showPlanned) ? null : map,
+        path: paths, strokeWeight: 2, strokeColor: color, strokeOpacity: 1,
+        fillColor: color, fillOpacity: s.planned ? .18 : .25
+      });
+      kakao.maps.event.addListener(poly, 'click', () => { if (_parcelMode || _addingMode) return; selectSchoolById(s.id); });
+      s.poly = poly;
+      const lc = s.planned ? 'planned-school' : 'school';
+      const label = new kakao.maps.CustomOverlay({
+        map: (s.planned && !_showPlanned) ? null : map,
+        position: new kakao.maps.LatLng(s.lat, s.lng), yAnchor: 0.5,
+        content: `<div class="map-label ${lc}" onclick="if(_parcelMode || _addingMode)return;selectSchoolById(${s.id})">${s.planned ? '◐' : '◉'} ${s.name}</div>`
+      });
+      s.label = label;
+    }
+
+    function renderSchoolList() {
+      document.getElementById('schoolList').innerHTML = _schools.map(s => `
+        <div class="school-card${s.planned ? ' planned-card' : ''}${_selectedSchool && _selectedSchool.id === s.id && !_selectedSchool.isKinder ? ' active' : ''}" id="scard-${s.id}" onclick="selectSchoolById(${s.id})">
+          <div class="card-header">
+            <div class="card-title">${s.planned ? '◐' : '◉'} ${s.name}</div>
+            <button class="del-btn" onclick="event.stopPropagation();deleteSchool(${s.id})" title="학교 삭제">✕</button>
+          </div>
+          <div class="card-meta">
+            <span>${s.dist}m</span>
+            <span>09:00 — ${s.endH}:00</span>
+          </div>
+          <div class="card-chips">
+            <span class="chip abs">절대 50m</span>
+            <span class="chip rel">상대 200m</span>
+            ${s.planned ? '<span class="chip pln">예정부지</span>' : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function deleteSchool(schoolId) {
+      const idx = _schools.findIndex(s => s.id === schoolId);
+      if (idx === -1) return;
+      const s = _schools[idx];
+      if (s.poly) s.poly.setMap(null);
+      if (s.label) s.label.setMap(null);
+      if (_selectedSchool && _selectedSchool.id === schoolId && !_selectedSchool.isKinder) {
+        _selectedSchool = null;
+        _shadowBldPolys.forEach(p => p.setMap(null)); _shadowBldPolys = [];
+        _shadowCastPolys.forEach(p => p.setMap(null)); _shadowCastPolys = [];
+        _clearComplexOverlays();
+        clearGridPolys();
+        document.getElementById('analysisSection').style.display = 'none';
+        document.getElementById('resultBox').innerHTML = '';
+      }
+      _schools.splice(idx, 1);
+      _drawAllZones();
+      renderSchoolList();
+      setStatus(`학교 삭제 완료 · 잔여 ${_schools.length}개`);
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 유치원 탐색 (유치원알리미 Open API)
+    // ════════════════════════════════════════════════════════
+    async function findNearbyKindergartens(lat, lng, sidoCode, sggCode, radius) {
+      _kindergartens.forEach(k => { if (k.poly) k.poly.setMap(null); if (k.label) k.label.setMap(null); });
+      _kindergartens = [];
+      _kinderAbsPolys.forEach(p => p.setMap(null)); _kinderAbsPolys = [];
+      _kinderRelPolys.forEach(p => p.setMap(null)); _kinderRelPolys = [];
+      document.getElementById('kinderSection').style.display = 'none';
+
+      if (!sidoCode || !sggCode) { console.warn('유치원: sidoCode/sggCode 없음'); return; }
+
+      try {
+        const url = `https://e-childschoolinfo.moe.go.kr/api/notice/basicInfo2.do` +
+          `?key=92164aea8cb34e799a22078a661872f4&sidoCode=${sidoCode}&sggCode=${sggCode}&pageCnt=1000&currentPage=1`;
+        const r = await fetchViaProxy(url);
+        const j = await r.json();
+        if (j.status !== 'SUCCESS') { console.warn('유치원 API 응답 이상:', j); return; }
+
+        let items = [];
+        if (Array.isArray(j.kinderInfo)) items = j.kinderInfo;
+        else if (j.kinderInfo && j.kinderInfo.item) items = Array.isArray(j.kinderInfo.item) ? j.kinderInfo.item : [j.kinderInfo.item];
+
+        let idCnt = 0;
+        items.forEach(item => {
+          const kLat = parseFloat(item.lttdcdnt);
+          const kLng = parseFloat(item.lngtcdnt);
+          if (!kLat || !kLng || isNaN(kLat) || isNaN(kLng)) return;
+          const dist = turf.distance(turf.point([lng, lat]), turf.point([kLng, kLat]), { units: 'meters' });
+          if (dist > radius + 300) return;
+
+          const geom = turf.circle([kLng, kLat], 0.03, { units: 'kilometers', steps: 32 });
+          const kinder = {
+            id: ++idCnt, name: item.kindername,
+            lat: kLat, lng: kLng, dist: Math.round(dist),
+            geom, endH: 13,
+            establish: item.establish || '',
+            prmstfcnt: parseInt(item.prmstfcnt) || 0,
+            buildings: [], poly: null, label: null,
+            isKinder: true,
+            isCustomGeom: false,
+            regLat: kLat, regLng: kLng,
+            _pinRefined: 0
+          };
+          _kindergartens.push(kinder);
+        });
+
+        await Promise.all(_kindergartens.map(k => new Promise(resolve => {
+          const ps = new kakao.maps.services.Places();
+          ps.keywordSearch(k.name, (data, status) => {
+            if (status !== kakao.maps.services.Status.OK || !data.length) return resolve();
+            let best = null, bestD = Infinity;
+            for (const d of data) {
+              const dLat = parseFloat(d.y), dLng = parseFloat(d.x);
+              if (!dLat || !dLng) continue;
+              const diff = turf.distance(turf.point([k.regLng, k.regLat]), turf.point([dLng, dLat]), { units: 'meters' });
+              if (diff < bestD) { bestD = diff; best = { lat: dLat, lng: dLng }; }
+            }
+            if (best && bestD < 300) {
+              k.lat = best.lat;
+              k.lng = best.lng;
+              k.dist = Math.round(turf.distance(turf.point([lng, lat]), turf.point([best.lng, best.lat]), { units: 'meters' }));
+              k.geom = turf.circle([best.lng, best.lat], 0.03, { units: 'kilometers', steps: 32 });
+              k._pinRefined = Math.round(bestD);
+            }
+            resolve();
+          }, { location: new kakao.maps.LatLng(lat, lng), radius: 2000 });
+        })));
+
+        _kindergartens = _kindergartens.filter(k => k.dist <= radius);
+        _kindergartens.sort((a, b) => a.dist - b.dist);
+        _kindergartens.forEach(k => _drawKinderOnMap(k));
+        _drawKinderZones();
+        renderKinderList();
+
+        if (_kindergartens.length > 0) {
+          document.getElementById('kinderSection').style.display = 'block';
+          // ★ Fix 1: setStatus 는 문자열만 받음 → 현재 문자열을 직접 읽어서 concat
+          const cur = document.getElementById('statusBar').textContent;
+          setStatus(`${cur} | 유치원 ${_kindergartens.length}개`);
+        }
+      } catch (e) { console.error('유치원 조회 오류:', e); }
+    }
+
+    function _drawKinderOnMap(k) {
+      const coords = k.geom.geometry.coordinates[0];
+      const path = coords.map(c => new kakao.maps.LatLng(c[1], c[0]));
+      const poly = new kakao.maps.Polygon({
+        map, path,
+        strokeWeight: 2, strokeColor: '#2E8B57', strokeOpacity: .9,
+        fillColor: '#2E8B57', fillOpacity: .25
+      });
+      kakao.maps.event.addListener(poly, 'click', () => selectKinderById(k.id));
+      k.poly = poly;
+
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'map-label kinder-label';
+      labelDiv.style.cssText = 'border-color:#2E8B57;color:#2E8B57;cursor:grab;user-select:none;touch-action:none;';
+      const renderLabelText = () => {
+        const tag = k._pinRefined ? ` <span style="font-size:9px;opacity:.6;">·${k._pinRefined}m</span>` : '';
+        const cTag = k.isCustomGeom ? ` <span style="font-size:9px;color:#2563A8;">·폴리곤</span>` : '';
+        labelDiv.innerHTML = `◈ ${k.name}${tag}${cTag}`;
+      };
+      renderLabelText();
+      labelDiv.title = '드래그해서 실제 위치로 이동 / 우클릭으로 원위치';
+
+      const label = new kakao.maps.CustomOverlay({
+        map, position: new kakao.maps.LatLng(k.lat, k.lng), yAnchor: 0.5, content: labelDiv
+      });
+      k.label = label;
+      k._renderLabelText = renderLabelText;
+
+      let dragging = false, wasDragged = false;
+      let startPt = { x: 0, y: 0 };
+      const mapDiv = document.getElementById('map');
+
+      const eventToContainerPoint = (e) => {
+        const pt = (e.touches && e.touches[0]) || e;
+        const rect = mapDiv.getBoundingClientRect();
+        return new kakao.maps.Point(pt.clientX - rect.left, pt.clientY - rect.top);
+      };
+
+      const onMove = (e) => {
+        if (!dragging) return;
+        e.preventDefault();
+        const newLatLng = map.getProjection().coordsFromContainerPoint(eventToContainerPoint(e));
+        label.setPosition(newLatLng);
+        wasDragged = true;
+      };
+
+      const onUp = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        labelDiv.style.cursor = 'grab';
+        map.setDraggable(true);
+        map.setZoomable(true);
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onUp);
+
+        const t = (e && e.changedTouches && e.changedTouches[0]) || e || window.event;
+        if (t) {
+          const dx = Math.abs(t.clientX - startPt.x);
+          const dy = Math.abs(t.clientY - startPt.y);
+          if (dx < 5 && dy < 5) wasDragged = false;
+        }
+
+        if (wasDragged) {
+          const pos = label.getPosition();
+          const nLat = pos.getLat(), nLng = pos.getLng();
+          k.lat = nLat; k.lng = nLng;
+          k.dist = Math.round(turf.distance(turf.point([_projectLng, _projectLat]), turf.point([nLng, nLat]), { units: 'meters' }));
+
+          if (k.isCustomGeom) {
+            const oldCenter = turf.centroid(k.geom);
+            const distKm = turf.distance(oldCenter, turf.point([nLng, nLat]), { units: 'kilometers' });
+            const bear = turf.bearing(oldCenter, turf.point([nLng, nLat]));
+            k.geom = turf.transformTranslate(k.geom, distKm, bear, { units: 'kilometers' });
+            const newPath = k.geom.geometry.coordinates[0].map(c => new kakao.maps.LatLng(c[1], c[0]));
+            k.poly.setPath(newPath);
+          } else {
+            k.geom = turf.circle([nLng, nLat], 0.03, { units: 'kilometers', steps: 32 });
+            const newPath = k.geom.geometry.coordinates[0].map(c => new kakao.maps.LatLng(c[1], c[0]));
+            k.poly.setPath(newPath);
+          }
+
+          _drawKinderZones();
+          renderKinderList();
+          if (_selectedSchool && _selectedSchool.isKinder && _selectedSchool.id === k.id) renderShadowsAt();
+          const baseLat = k.regLat ?? nLat;
+          const baseLng = k.regLng ?? nLng;
+          const movedM = Math.round(turf.distance(turf.point([baseLng, baseLat]), turf.point([nLng, nLat]), { units: 'meters' }));
+          k._pinRefined = movedM;
+          renderLabelText();
+          setStatus(`${k.name} 위치를 ${movedM}m 이동`);
+          setTimeout(() => { wasDragged = false; }, 50);
+        }
+      };
+
+      const onDown = (e) => {
+        if (e.button !== undefined && e.button !== 0) return;
+        e.preventDefault(); e.stopPropagation();
+        const t = (e.touches && e.touches[0]) || e;
+        startPt = { x: t.clientX, y: t.clientY };
+        dragging = true; wasDragged = false;
+        labelDiv.style.cursor = 'grabbing';
+        map.setDraggable(false); map.setZoomable(false);
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+      };
+
+      labelDiv.addEventListener('mouseenter', () => { map.setDraggable(false); map.setZoomable(false); });
+      labelDiv.addEventListener('mouseleave', () => { if (!dragging) { map.setDraggable(true); map.setZoomable(true); } });
+      labelDiv.addEventListener('mousedown', onDown, true);
+      labelDiv.addEventListener('touchstart', onDown, { passive: false, capture: true });
+
+      labelDiv.addEventListener('click', (e) => {
+        if (wasDragged) { e.preventDefault(); e.stopPropagation(); return; }
+        selectKinderById(k.id);
+      });
+      labelDiv.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (k.regLat == null || k.regLng == null) return;
+        const nLat = k.regLat, nLng = k.regLng;
+        k.lat = nLat; k.lng = nLng;
+        label.setPosition(new kakao.maps.LatLng(nLat, nLng));
+        k.dist = Math.round(turf.distance(turf.point([_projectLng, _projectLat]), turf.point([nLng, nLat]), { units: 'meters' }));
+        k.isCustomGeom = false;
+        k.geom = turf.circle([nLng, nLat], 0.03, { units: 'kilometers', steps: 32 });
+        k.poly.setPath(k.geom.geometry.coordinates[0].map(c => new kakao.maps.LatLng(c[1], c[0])));
+        k.poly.setOptions({ strokeColor: '#2E8B57', fillColor: '#2E8B57', fillOpacity: 0.25 });
+        _drawKinderZones();
+        renderKinderList();
+        if (_selectedSchool && _selectedSchool.isKinder && _selectedSchool.id === k.id) renderShadowsAt();
+        k._pinRefined = 0;
+        renderLabelText();
+        setStatus(`${k.name} 등록좌표로 원위치`);
+      });
+    }
+
+    // ★ Fix 5: 유치원 보호구역을 k.geom(폴리곤/원형) 경계 기준으로 그리기
+    function _drawKinderZones() {
+      _kinderAbsPolys.forEach(p => p.setMap(null)); _kinderAbsPolys = [];
+      _kinderRelPolys.forEach(p => p.setMap(null)); _kinderRelPolys = [];
+
+      _kindergartens.forEach(k => {
+        try {
+          // 점이 아니라 k.geom(원형 또는 사용자 폴리곤) 경계에서 버퍼링
+          const abs = turf.buffer(k.geom, 0.05, { units: 'kilometers' });
+          const rel = turf.buffer(k.geom, 0.2, { units: 'kilometers' });
+          let donut; try { donut = turf.difference(rel, abs); } catch (e) { donut = rel; }
+          const toPath = cs => cs.map(c => new kakao.maps.LatLng(c[1], c[0]));
+
+          if (donut?.geometry) {
+            const rings = donut.geometry.type === 'Polygon' ? [donut.geometry.coordinates] : donut.geometry.coordinates;
+            rings.forEach(pc => {
+              const poly = new kakao.maps.Polygon({
+                map: _showKinderRel ? map : null, path: pc.map(r => toPath(r)),
+                strokeWeight: 1, strokeColor: '#D97706', strokeOpacity: .6,
+                fillColor: '#D97706', fillOpacity: .045
+              });
+              _kinderRelPolys.push(poly);
+            });
+          }
+          if (abs?.geometry) {
+            const rings = abs.geometry.type === 'Polygon' ? [abs.geometry.coordinates] : abs.geometry.coordinates;
+            rings.forEach(pc => {
+              const poly = new kakao.maps.Polygon({
+                map: _showKinderAbs ? map : null, path: pc.map(r => toPath(r)),
+                strokeWeight: 1, strokeColor: '#D64545', strokeOpacity: .8,
+                fillColor: '#D64545', fillOpacity: .08
+              });
+              _kinderAbsPolys.push(poly);
+            });
+          }
+        } catch (e) { }
+      });
+    }
+
+    function toggleKinderZone(type) {
+      if (type === 'abs') {
+        _showKinderAbs = !_showKinderAbs;
+        _kinderAbsPolys.forEach(p => p.setMap(_showKinderAbs ? map : null));
+        document.getElementById('kinderAbsBtn').classList.toggle('on', _showKinderAbs);
+      } else {
+        _showKinderRel = !_showKinderRel;
+        _kinderRelPolys.forEach(p => p.setMap(_showKinderRel ? map : null));
+        document.getElementById('kinderRelBtn').classList.toggle('on', _showKinderRel);
+      }
+    }
+
+    function renderKinderList() {
+      document.getElementById('kinderList').innerHTML = _kindergartens.map(k => `
+        <div class="kinder-card${_selectedSchool?.isKinder && _selectedSchool.id === k.id ? ' active' : ''}"
+             id="kcard-${k.id}" onclick="selectKinderById(${k.id})">
+          <div class="card-header">
+            <div class="kname">◈ ${k.name}</div>
+            <button class="del-btn" onclick="event.stopPropagation();deleteKinder(${k.id})">✕</button>
+          </div>
+          <div class="kmeta">
+            <span>${k.dist}m</span>
+            <span>${k.establish || ''}</span>
+            <span>09:00 — 13:00</span>
+          </div>
+          <div class="kchips">
+            <span class="chip kinder">유치원</span>
+            <span class="chip abs">절대 50m</span>
+            <span class="chip rel">상대 200m</span>
+            ${k.isCustomGeom ? '<span class="chip custom">지적/폴리곤 반영됨</span>' : ''}
+          </div>
+          <!-- ★ 버튼 2개(직접 그리기 & 클릭으로 연동)로 확장된 부분 -->
+          <div style="display:flex; gap:6px; margin-top:8px;">
+            <button class="del-btn" style="flex:1;" onclick="event.stopPropagation(); startKinderDraw(${k.id})">
+              ✏️ 폴리곤 그리기
+            </button>
+            <button class="del-btn" style="flex:1;" onclick="event.stopPropagation(); startKinderParcelMode(${k.id})">
+              🎯 클릭 지적연동
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function deleteKinder(kinderId) {
+      const idx = _kindergartens.findIndex(k => k.id === kinderId);
+      if (idx === -1) return;
+      const k = _kindergartens[idx];
+      if (k.poly) k.poly.setMap(null);
+      if (k.label) k.label.setMap(null);
+      if (_selectedSchool?.isKinder && _selectedSchool.id === kinderId) {
+        _selectedSchool = null;
+        _shadowBldPolys.forEach(p => p.setMap(null)); _shadowBldPolys = [];
+        _shadowCastPolys.forEach(p => p.setMap(null)); _shadowCastPolys = [];
+        _clearComplexOverlays();
+        clearGridPolys();
+        document.getElementById('analysisSection').style.display = 'none';
+        document.getElementById('resultBox').innerHTML = '';
+      }
+      _kindergartens.splice(idx, 1);
+      _drawKinderZones();
+      renderKinderList();
+      if (!_kindergartens.length) document.getElementById('kinderSection').style.display = 'none';
+      setStatus(`유치원 삭제 완료 · 잔여 ${_kindergartens.length}개`);
+    }
+
+    async function selectSchoolById(schoolId) {
+      const s = _schools.find(x => x.id === schoolId);
+      if (!s) return;
+      _selectedSchool = s;
+      renderSchoolList();
+      renderKinderList();
+      if (document.getElementById('schoolLevel')) document.getElementById('schoolLevel').value = s.endH;
+      await _prepareAnalysisFor(s);
+    }
+
+    async function selectKinderById(kinderId) {
+      const k = _kindergartens.find(x => x.id === kinderId);
+      if (!k) return;
+      _selectedSchool = k;
+      renderSchoolList();
+      renderKinderList();
+      if (document.getElementById('schoolLevel')) document.getElementById('schoolLevel').value = k.endH;
+      await _prepareAnalysisFor(k);
+    }
+
+    // ★ Fix 2 + Fix 4: bd_hght 필드명 + 단지 외곽선을 Polyline 으로
+    async function _prepareAnalysisFor(s) {
+      const bounds = new kakao.maps.LatLngBounds();
+      bounds.extend(new kakao.maps.LatLng(_projectLat, _projectLng));
+      bounds.extend(new kakao.maps.LatLng(s.lat, s.lng));
+      map.setBounds(bounds, 120);
+
+      document.getElementById('analysisSection').style.display = 'block';
+      document.getElementById('resultBox').innerHTML = '';
+      clearGridPolys();
+      _clearComplexOverlays();
+
+      showLoading(true, `${s.name} 상대구역 건물 및 단지 탐색 중...`);
+      _shadowBldPolys.forEach(p => p.setMap(null)); _shadowBldPolys = [];
+
+      try {
+        const buf200 = turf.buffer(s.geom, 0.2, { units: 'kilometers' });
+        const buf400 = turf.buffer(s.geom, 0.4, { units: 'kilometers' });
+        const bufBbox = turf.bbox(buf400);
+        const feats = await fetchWfsChunk(bufBbox[0], bufBbox[1], bufBbox[2], bufBbox[3], 'lt_c_bldginfo');
+
+        const prop = (f, ...keys) => {
+          for (const k of keys) {
+            const v = f.properties[k] ?? f.properties[k.toUpperCase()] ?? f.properties[k.toLowerCase()];
+            if (v !== undefined && v !== null && v !== '') return v;
+          }
+          return undefined;
+        };
+
+        const ignoreNames = new Set(['아파트', '상가', '부속건축물', '주차장', '단독주택', '창고', '동', '빌라', '오피스텔']);
+        const normalizeComplexName = name => name.replace(/\s*(제?\s*\d+\s*단지)\s*$/, '').replace(/\s*(\d+차)\s*단지\s*$/, '$1').trim();
+
+        const complexIds = new Set();
+        const complexNms = new Set();
+
+        feats.forEach(f => {
+          if (!f.geometry) return;
+          try {
+            const bGeom = f.geometry.type === 'Polygon'
+              ? turf.polygon(f.geometry.coordinates)
+              : turf.multiPolygon(f.geometry.coordinates);
+            if (!turf.booleanIntersects(buf200, bGeom)) return;
+            const sn = String(prop(f, 'bd_mgt_sn') ?? '');
+            if (sn.length >= 19) complexIds.add(sn.substring(0, 19));
+            const nm = normalizeComplexName(String(prop(f, 'bld_nm', 'dong_nm') ?? '').trim());
+            if (nm.length > 2 && !ignoreNames.has(nm)) complexNms.add(nm);
+          } catch (e) { }
+        });
+
+        s.buildings = [];
+        const complexGroups = new Map();
+
+        feats.forEach(f => {
+          if (!f.geometry) return;
+          try {
+            const bldGeom = f.geometry.type === 'Polygon'
+              ? turf.polygon(f.geometry.coordinates)
+              : turf.multiPolygon(f.geometry.coordinates);
+
+            if (_projectGeom && turf.booleanIntersects(_projectGeom, bldGeom)) return;
+
+            let isIncluded = false;
+            try { if (turf.booleanIntersects(buf200, bldGeom)) isIncluded = true; } catch (e) { }
+            if (!isIncluded) {
+              const sn = String(prop(f, 'bd_mgt_sn') ?? '');
+              const rawNm = String(prop(f, 'bld_nm', 'dong_nm') ?? '').trim();
+              const normNm = normalizeComplexName(rawNm);
+              if (sn.length >= 19 && complexIds.has(sn.substring(0, 19))) isIncluded = true;
+              else if (rawNm.length > 2 && !ignoreNames.has(rawNm) && complexNms.has(normNm)) isIncluded = true;
+            }
+            if (!isIncluded) return;
+
+            // ★ Fix 2: VWorld 공식 필드명 bd_hght 사용
+            const rawH = Number(prop(f, 'bd_hght', 'height') ?? 0);
+            const rawFlr = Number(prop(f, 'grnd_flr') ?? 0);
+            let finalH = rawH > 0 ? rawH : rawFlr * 3.0;
+            if (finalH < 5) {
+              const area = turf.area(bldGeom);
+              if (area > 100) finalH = 10;
+              else return;
+            }
+            f._height = finalH;
+            s.buildings.push(f);
+
+            const rawNm = String(prop(f, 'bld_nm', 'dong_nm') ?? '').trim();
+            const normNm = normalizeComplexName(rawNm);
+            const sn = String(prop(f, 'bd_mgt_sn') ?? '');
+            let groupKey;
+            if (rawNm.length > 2 && !ignoreNames.has(rawNm)) groupKey = 'NM_' + normNm;
+            else if (sn.length >= 19) groupKey = 'SN_' + sn.substring(0, 19);
+            else groupKey = 'IND_' + (sn || Math.random().toString(36).slice(2, 8));
+
+            if (!complexGroups.has(groupKey)) complexGroups.set(groupKey, { feats: [], rawNames: new Set() });
+            complexGroups.get(groupKey).feats.push(f);
+            if (rawNm) complexGroups.get(groupKey).rawNames.add(rawNm);
+          } catch (e) { }
+        });
+
+        const schoolGeomCoords = s.geom.geometry.type === 'Polygon'
+          ? s.geom.geometry.coordinates
+          : s.geom.geometry.coordinates.flat();
+        const schoolLine = turf.multiLineString(schoolGeomCoords);
+
+        for (const group of complexGroups.values()) {
+          const { feats: gFeats, rawNames } = group;
+          let displayName = '';
+          for (const nm of rawNames) {
+            if (nm.length > 2 && !ignoreNames.has(nm)) { displayName = nm; break; }
+          }
+          if (!displayName) displayName = '건물군';
+
+          // ────────────────────────────────────────────────────────────────
+          // 단지 대지경계선 계산 (Option A - VWorld 지적도 기반 정확 모드)
+          // 1) 단지 내 모든 동의 중심점에서 fetchVWorldParcel() 호출
+          // 2) 동일 필지(PNU) 중복 제거
+          // 3) 가져온 필지 폴리곤들을 union → 진짜 단지 대지경계
+          // 4) 모두 실패 시 building footprint buffer-union으로 fallback
+          // ────────────────────────────────────────────────────────────────
+          let complexUnion = null;
+          try {
+            const parcelMap = new Map(); // PNU → parcelFeature
+
+            // 각 동의 중심점에서 지적 조회 (순차 + 150ms 간격, 프록시 rate limit 회피)
+            const parcelResults = [];
+            for (const f of gFeats) {
+              if (!f.geometry) { parcelResults.push(null); continue; }
+              try {
+                const bGeom = f.geometry.type === 'Polygon'
+                  ? turf.polygon(f.geometry.coordinates)
+                  : turf.multiPolygon(f.geometry.coordinates);
+                const ctr = turf.centroid(bGeom).geometry.coordinates;
+                parcelResults.push(await fetchVWorldParcel(ctr[1], ctr[0]));
+                await new Promise(r => setTimeout(r, 150));
+              } catch (e) { parcelResults.push(null); }
+            }
+
+            // PNU(필지고유번호) 기준 중복 제거
+            parcelResults.forEach(pf => {
+              if (!pf || !pf.geometry) return;
+              const pnu = pf.properties?.pnu
+                || pf.properties?.PNU
+                || pf.properties?.ag_geom_id
+                || JSON.stringify(pf.geometry.coordinates[0]?.[0] || '');
+              if (!parcelMap.has(pnu)) parcelMap.set(pnu, pf);
+            });
+
+            // 필지 폴리곤들을 union
+            parcelMap.forEach(pf => {
+              try {
+                const parcelGeom = pf.geometry.type === 'Polygon'
+                  ? turf.polygon(pf.geometry.coordinates)
+                  : turf.multiPolygon(pf.geometry.coordinates);
+                complexUnion = complexUnion ? turf.union(complexUnion, parcelGeom) : parcelGeom;
+              } catch (e) { }
+            });
+
+            // Fallback: 지적 조회 실패 시 기존 buffer-union 방식
+            if (!complexUnion) {
+              gFeats.forEach(f => {
+                if (!f.geometry) return;
+                try {
+                  const tg = f.geometry.type === 'Polygon'
+                    ? turf.polygon(f.geometry.coordinates)
+                    : turf.multiPolygon(f.geometry.coordinates);
+                  const buf = turf.buffer(tg, 0.015, { units: 'kilometers' });
+                  complexUnion = complexUnion ? turf.union(complexUnion, buf) : buf;
+                } catch (e) { }
+              });
+            }
+          } catch (e) { console.warn('단지 대지경계 조회 실패:', e); }
+
+          if (!complexUnion) continue;
+
+          let minDist = Infinity, ptComplex = null, ptSchool = null;
+          try {
+            if (turf.booleanIntersects(complexUnion, s.geom)) {
+              minDist = 0;
+            } else {
+              const cxCoords = complexUnion.geometry.type === 'Polygon'
+                ? complexUnion.geometry.coordinates
+                : complexUnion.geometry.coordinates.flat();
+              const complexLine = turf.multiLineString(cxCoords);
+              turf.coordEach(complexUnion, pt => {
+                const p = turf.point(pt), n = turf.nearestPointOnLine(schoolLine, p);
+                const d = turf.distance(p, n, { units: 'meters' });
+                if (d < minDist) { minDist = d; ptComplex = pt; ptSchool = n.geometry.coordinates; }
+              });
+              turf.coordEach(s.geom, pt => {
+                const p = turf.point(pt), n = turf.nearestPointOnLine(complexLine, p);
+                const d = turf.distance(p, n, { units: 'meters' });
+                if (d < minDist) { minDist = d; ptSchool = pt; ptComplex = n.geometry.coordinates; }
+              });
+            }
+          } catch (e) { }
+          const distM = Math.round(minDist);
+
+          const maxFlr = Math.max(0, ...gFeats.map(f => Number(prop(f, 'grnd_flr') ?? 0)));
+          const maxH = Math.max(0, ...gFeats.map(f => Number(f._height ?? 0)));
+
+          const toPath = cs => cs.map(c => new kakao.maps.LatLng(c[1], c[0]));
+          const outlineRings = complexUnion.geometry.type === 'Polygon'
+            ? [complexUnion.geometry.coordinates]
+            : complexUnion.geometry.coordinates;
+
+          // ★ Fix 4: 단지 대지경계를 Polyline 으로 (채움 없음)
+          outlineRings.forEach(pc => {
+            pc.forEach(ring => {
+              const ringPath = toPath(ring);
+              if (ringPath.length > 0) {
+                const first = ringPath[0], last = ringPath[ringPath.length - 1];
+                if (first.getLat() !== last.getLat() || first.getLng() !== last.getLng()) {
+                  ringPath.push(first);
+                }
+              }
+              const line = new kakao.maps.Polyline({
+                map: _showComplexInfo ? map : null,
+                path: ringPath,
+                strokeWeight: 2.2, strokeColor: '#1F1410',
+                strokeOpacity: 0.85, strokeStyle: 'solid'
+              });
+              _nearbyComplexPolys.push(line);
+            });
+          });
+
+          if (ptComplex && ptSchool && minDist > 0) {
+            const line = new kakao.maps.Polyline({
+              map: _showComplexInfo ? map : null,
+              path: [new kakao.maps.LatLng(ptComplex[1], ptComplex[0]), new kakao.maps.LatLng(ptSchool[1], ptSchool[0])],
+              strokeWeight: 1.5, strokeColor: '#1F1410', strokeOpacity: .65, strokeStyle: 'dashed'
+            });
+            _nearbyDistLines.push(line);
+          }
+
+          const ctr = turf.centroid(complexUnion).geometry.coordinates;
+          const label = new kakao.maps.CustomOverlay({
+            map: _showComplexInfo ? map : null,
+            position: new kakao.maps.LatLng(ctr[1], ctr[0]),
+            content: `<div class="map-label" style="border-color:#1F1410;color:#1F1410;font-size:10.5px;line-height:1.4;padding:3px 9px;">${displayName}${maxFlr > 0 ? `<br><span style="font-size:9.5px;opacity:.65;font-family:JetBrains Mono,monospace;">${maxFlr}F (${maxH.toFixed(1)}m) · ${distM}m</span>` : ''}</div>`,
+            yAnchor: 0.5
+          });
+          _nearbyComplexLabels.push(label);
+
+          gFeats.forEach(f => {
+            if (!f.geometry) return;
+            const polys2 = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+            polys2.forEach(pc => {
+              const bPoly = new kakao.maps.Polygon({
+                map, path: pc.map(ring => toPath(ring)),
+                strokeWeight: 1, strokeColor: '#3a4250', strokeOpacity: .5,
+                fillColor: '#1f2530', fillOpacity: .5
+              });
+              _shadowBldPolys.push(bPoly);
+            });
+          });
+        }
+
+        // ★ 학교 내부 건물(창 생성 대상) 추출 + 외부공간(격자 대상) 계산
+        s.internalBlds = s.buildings.filter(b => {
+          try {
+            const bGeom = b.geometry.type === 'Polygon'
+              ? turf.polygon(b.geometry.coordinates)
+              : turf.multiPolygon(b.geometry.coordinates);
+            const inter = turf.intersect(s.geom, bGeom);
+            if (!inter) return false;
+            return turf.area(inter) / turf.area(bGeom) > 0.5;
+          } catch (e) { return false; }
+        });
+        let outdoor = s.geom;
+        s.internalBlds.forEach(b => {
+          try {
+            const bGeom = b.geometry.type === 'Polygon'
+              ? turf.polygon(b.geometry.coordinates)
+              : turf.multiPolygon(b.geometry.coordinates);
+            const diff = turf.difference(outdoor, bGeom);
+            if (diff) outdoor = diff;
+          } catch (e) { }
+        });
+        s.outdoorGeom = outdoor;
+
+        setStatus(`${s.name}${s.isCustomGeom ? ' (사용자 폴리곤)' : ''} · ${complexGroups.size}개 단지 · ${s.buildings.length}동 · 학교내부 ${s.internalBlds.length}동`);
+      } catch (e) {
+        console.error('건물 로드 오류:', e);
+        s.buildings = [];
+        setStatus(`${s.name} · 건물 데이터 로드 실패`);
+      } finally {
+        showLoading(false);
+        renderShadowsAt();
+      }
+    }
+
+    function onShadowSlider(el) {
+      const v = parseFloat(el.value);
+      const h = Math.floor(v), m = Math.round((v % 1) * 60);
+      document.getElementById('shadowTimeLabel').textContent =
+        `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      renderShadowsAt();
+    }
+
+    function renderShadowsAt() {
+      _shadowCastPolys.forEach(p => p.setMap(null)); _shadowCastPolys = [];
+      if (!_selectedSchool) return;
+      const allBlds = [...(_selectedSchool.buildings || []), ..._layoutFeats];
+      if (!allBlds.length) return;
+
+      const dateStr = document.getElementById('shadowDate').value;
+      if (!dateStr) return;
+
+      const hv = parseFloat(document.getElementById('shadowSlider').value);
+      const h = Math.floor(hv), m = Math.round((hv % 1) * 60);
+      const shadowPolys = getShadowPolygons(allBlds, _selectedSchool.lat, _selectedSchool.lng, dateStr, h, m);
+
+      if (!shadowPolys || shadowPolys === 'FULL') return;
+      shadowPolys.forEach(sp => {
+        const polys = sp.geometry.type === 'Polygon' ? [sp.geometry.coordinates] : sp.geometry.coordinates;
+        polys.forEach(pc => {
+          const paths = pc.map(ring => ring.map(c => new kakao.maps.LatLng(c[1], c[0])));
+          const poly = new kakao.maps.Polygon({ map, path: paths, strokeWeight: 0, fillColor: '#000', fillOpacity: .38 });
+          _shadowCastPolys.push(poly);
+        });
+      });
+    }
+
+    async function runImpactAnalysis() {
+      const btn = document.getElementById('runAnalysisBtn');
+      const box = document.getElementById('resultBox');
+      if (!_selectedSchool) return;
+
+      const s = _selectedSchool;
+      const existingBlds = s.buildings || [];
+      const newBlds = _layoutFeats || [];
+
+      if (!newBlds.length) {
+        return box.innerHTML = '<div style="color:var(--red);font-size:11.5px;padding:10px;background:var(--red-soft);border:1px solid rgba(214,69,69,.2);border-radius:var(--r-md);">배치된 신축 건물이 없습니다.</div>';
+      }
+
+      btn.textContent = '연산 중...'; btn.disabled = true;
+      clearGridPolys();
+      _overlayVisible = true;
+
+      const dateStr = document.getElementById('shadowDate').value;
+      if (!dateStr) { alert("그림자 기준 날짜를 선택해주세요."); btn.textContent = '수인한도 격자 분석 실행'; btn.disabled = false; return; }
+      const spacingM = parseInt(document.getElementById('gridSpacing').value);
+      const winSpacingM = parseFloat(document.getElementById('windowSpacing').value) || 2.5;
+      const endH = parseInt(document.getElementById('schoolLevel').value) || s.endH;
+
+      // 1) 격자 — 학교 내부 건물 footprint 제외한 외부공간
+      const gridMask = s.outdoorGeom || s.geom;
+      let pts = [];
+      try {
+        const bbox = turf.bbox(gridMask);
+        pts = turf.pointGrid(bbox, spacingM / 1000, { units: 'kilometers', mask: gridMask }).features;
+      } catch (e) {
+        btn.textContent = '수인한도 격자 분석 실행'; btn.disabled = false;
+        return box.innerHTML = '<div style="color:var(--red);font-size:11.5px;">격자 생성 오류</div>';
+      }
+
+      // 2) 창 생성
+      if (_winAnalysisEnabled && s.internalBlds && s.internalBlds.length) {
+        _generateWindowsForSchool(s, winSpacingM);
+      } else {
+        s.windows = [];
+      }
+      const windows = s.windows || [];
+      const winEnabled = _winAnalysisEnabled && windows.length > 0;
+      const uniqueWinHeights = winEnabled ? [...new Set(windows.map(w => w.z))].sort((a, b) => a - b) : [];
+
+      box.innerHTML = `<div style="color:var(--ink-3);font-size:11.5px;padding:10px;font-family:var(--font-mono);">격자 ${pts.length}칸 · 창 ${windows.length}개 준비</div>`;
+      await tick();
+
+      // 3) 시간 슬롯
+      const slots = [];
+      for (let h = 8; h <= 16; h++) for (let m = 0; m < 60; m += 30) {
+        if (h === 16 && m > 0) break; slots.push({ h, m });
+      }
+
+      const ptSunBefore = pts.map(() => new Array(slots.length).fill(true));
+      const ptSunAfter = pts.map(() => new Array(slots.length).fill(true));
+      const winSunBefore = windows.map(() => new Array(slots.length).fill(true));
+      const winSunAfter = windows.map(() => new Array(slots.length).fill(true));
+
+      for (let si = 0; si < slots.length; si++) {
+        const { h, m } = slots[si];
+        box.innerHTML = `<div style="color:var(--ink-3);font-size:11.5px;padding:10px;font-family:var(--font-mono);">${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} · ${si + 1}/${slots.length}</div>`;
+        await tick();
+
+        // 격자용 그림자 (지표면)
+        const groundB = getShadowPolygons(existingBlds, s.lat, s.lng, dateStr, h, m, 0);
+        const groundN = getShadowPolygons(newBlds, s.lat, s.lng, dateStr, h, m, 0);
+        const fullGB = groundB === 'FULL', fullGN = groundN === 'FULL';
+
+        for (let pi = 0; pi < pts.length; pi++) {
+          let sB = fullGB, sN = fullGN;
+          if (!sB && groundB) for (const sp of groundB) { try { if (turf.booleanPointInPolygon(pts[pi], sp)) { sB = true; break; } } catch (e) { } }
+          if (!sN && groundN) for (const sp of groundN) { try { if (turf.booleanPointInPolygon(pts[pi], sp)) { sN = true; break; } } catch (e) { } }
+          ptSunBefore[pi][si] = !sB;
+          ptSunAfter[pi][si] = !(sB || sN);
+        }
+
+        // 창용 (높이별 그림자 + 입사각)
+        if (winEnabled) {
+          const date = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`);
+          const pos = SunCalc.getPosition(date, s.lat, s.lng);
+          const sunCompass = ((pos.azimuth * 180 / Math.PI) + 180 + 360) % 360;
+          const sunBelowHorizon = pos.altitude <= 0.017;
+
+          const shByH = {};
+          uniqueWinHeights.forEach(wh => {
+            shByH[wh] = {
+              B: getShadowPolygons(existingBlds, s.lat, s.lng, dateStr, h, m, wh),
+              N: getShadowPolygons(newBlds, s.lat, s.lng, dateStr, h, m, wh)
+            };
+          });
+
+          for (let wi = 0; wi < windows.length; wi++) {
+            const w = windows[wi];
+            let diff = Math.abs(w.normalBearing - sunCompass);
+            if (diff > 180) diff = 360 - diff;
+            const facing = diff < 90;
+            if (sunBelowHorizon || !facing) {
+              winSunBefore[wi][si] = false;
+              winSunAfter[wi][si] = false;
+              continue;
+            }
+            const shB = shByH[w.z].B, shA = shByH[w.z].N;
+            let sB = shB === 'FULL', sN = shA === 'FULL';
+            const wpt = turf.point([w.lng, w.lat]);
+            if (!sB && shB) for (const sp of shB) { try { if (turf.booleanPointInPolygon(wpt, sp)) { sB = true; break; } } catch (e) { } }
+            if (!sN && shA) for (const sp of shA) { try { if (turf.booleanPointInPolygon(wpt, sp)) { sN = true; break; } } catch (e) { } }
+            winSunBefore[wi][si] = !sB;
+            winSunAfter[wi][si] = !(sB || sN);
+          }
+        }
+      }
+
+      // 4) 평가 슬롯
+      const evalSlots = slots.map((sl, i) => ({ ...sl, idx: i })).filter(sl => sl.h >= 9 && sl.h < endH);
+      const checkMeets = arr => {
+        const total = arr.filter(Boolean).length * 0.5;
+        let c1 = false;
+        for (let i = 0; i < arr.length - 1; i++) if (arr[i] && arr[i + 1]) { c1 = true; break; }
+        return c1 || total >= 2.0;
+      };
+      const assignColors = (loss) => {
+        if (loss <= 0) return { key: '0', color: '#2563A8' };
+        if (loss <= 0.5) return { key: '0.5', color: '#F5A623' };
+        if (loss <= 1.0) return { key: '1.0', color: '#F08022' };
+        if (loss <= 1.5) return { key: '1.5', color: '#E05D2D' };
+        return { key: '2.0+', color: '#D64545' };
+      };
+
+      // 5) 격자 통계 & 마커
+      let gMB = 0, gMA = 0, gNI = 0;
+      const gLoss = { '0': 0, '0.5': 0, '1.0': 0, '1.5': 0, '2.0+': 0 };
+      const hLat = (spacingM / 1000) * 1000 / 111000 / 2 * .82;
+      const hLng = hLat / Math.cos(s.lat * Math.PI / 180);
+
+      pts.forEach((pt, pi) => {
+        const sB = evalSlots.map(sl => ptSunBefore[pi][sl.idx]);
+        const sA = evalSlots.map(sl => ptSunAfter[pi][sl.idx]);
+        const mB = checkMeets(sB), mA = checkMeets(sA);
+        if (mB) gMB++; if (mA) gMA++;
+        let oxColor;
+        if (mB && mA) oxColor = '#2E8B57';
+        else if (mB && !mA) { oxColor = '#D64545'; gNI++; }
+        else oxColor = '#918E85';
+        const loss = sB.filter(Boolean).length * 0.5 - sA.filter(Boolean).length * 0.5;
+        const lc = assignColors(loss); gLoss[lc.key]++;
+        const [lng, lat] = pt.geometry.coordinates;
+        const poly = new kakao.maps.Polygon({
+          map, path: [
+            new kakao.maps.LatLng(lat - hLat, lng - hLng), new kakao.maps.LatLng(lat - hLat, lng + hLng),
+            new kakao.maps.LatLng(lat + hLat, lng + hLng), new kakao.maps.LatLng(lat + hLat, lng - hLng)
+          ],
+          strokeWeight: 0, fillColor: oxColor, fillOpacity: 0.85
+        });
+        poly._oxColor = oxColor; poly._lossColor = lc.color;
+        _gridPolys.push(poly);
+      });
+
+      // 6) 창 통계 & 마커
+      let wMB = 0, wMA = 0, wNI = 0;
+      const wLoss = { '0': 0, '0.5': 0, '1.0': 0, '1.5': 0, '2.0+': 0 };
+      if (winEnabled) {
+        const winSz = 1.6;
+        windows.forEach((w, wi) => {
+          const sB = evalSlots.map(sl => winSunBefore[wi][sl.idx]);
+          const sA = evalSlots.map(sl => winSunAfter[wi][sl.idx]);
+          const mB = checkMeets(sB), mA = checkMeets(sA);
+          if (mB) wMB++; if (mA) wMA++;
+          let oxColor;
+          if (mB && mA) oxColor = '#2E8B57';
+          else if (mB && !mA) { oxColor = '#D64545'; wNI++; }
+          else oxColor = '#918E85';
+          const loss = sB.filter(Boolean).length * 0.5 - sA.filter(Boolean).length * 0.5;
+          const lc = assignColors(loss); wLoss[lc.key]++;
+          const wLatH = (winSz / 2) / 111000;
+          const wLngH = wLatH / Math.cos(w.lat * Math.PI / 180);
+          const m2 = new kakao.maps.Polygon({
+            map, path: [
+              new kakao.maps.LatLng(w.lat - wLatH, w.lng - wLngH),
+              new kakao.maps.LatLng(w.lat - wLatH, w.lng + wLngH),
+              new kakao.maps.LatLng(w.lat + wLatH, w.lng + wLngH),
+              new kakao.maps.LatLng(w.lat + wLatH, w.lng - wLngH)
+            ],
+            strokeWeight: 0.5, strokeColor: '#000', strokeOpacity: 0.45,
+            fillColor: oxColor, fillOpacity: 0.95
+          });
+          m2._oxColor = oxColor; m2._lossColor = lc.color;
+          _winMarkers.push(m2);
+        });
+      }
+
+      // 7) UI 렌더
+      const makeBar = (val, label, total, barColor) => {
+        const pct = total ? ((val / total) * 100).toFixed(1) : '0.0';
+        return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="width:115px;font-size:10.5px;font-weight:600;color:var(--ink-2);text-align:right;letter-spacing:-0.02em;">${label}</div>
+      <div style="flex:1;background:var(--line);height:12px;border-radius:6px;overflow:hidden;">
+        <div style="width:${pct}%;background:${barColor};height:100%;border-radius:6px;transition:width 0.5s ease;"></div>
+      </div>
+      <div style="width:75px;font-size:10.5px;font-family:var(--font-mono);text-align:right;">
+        <span style="font-weight:700;color:var(--ink);">${pct}%</span> <span style="color:var(--ink-4);font-size:9.5px;">(${val})</span>
+      </div></div>`;
+      };
+      const statBlock = (title, mB, ni, mA, total, unit) => {
+        const rT = total ? (ni / total * 100).toFixed(1) : '0.0';
+        const rB = mB ? (ni / mB * 100).toFixed(1) : '0.0';
+        return `
+    <div style="font-family:var(--font-mono);font-size:10.5px;font-weight:700;color:var(--ink);margin-bottom:12px;letter-spacing:0.04em;text-transform:uppercase;">
+      ${title} <span style="font-weight:500;color:var(--ink-3);">(${unit})</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px;text-align:center;gap:8px;">
+      <div style="flex:1;background:var(--surface-2);padding:12px 0;border-radius:var(--r-sm);">
+        <div style="font-size:10px;font-weight:600;color:var(--ink-3);margin-bottom:4px;">기존 만족</div>
+        <div style="font-size:20px;font-weight:700;color:var(--ink);font-family:var(--font-mono);">${mB}</div>
+      </div>
+      <div style="flex:1;background:var(--red-soft);border:1px solid rgba(214,69,69,.25);padding:12px 0;border-radius:var(--r-sm);">
+        <div style="font-size:10px;font-weight:600;color:var(--red);margin-bottom:4px;">신규 불만족</div>
+        <div style="font-size:20px;font-weight:700;color:var(--red);font-family:var(--font-mono);">${ni}</div>
+      </div>
+      <div style="flex:1;background:var(--surface-2);padding:12px 0;border-radius:var(--r-sm);">
+        <div style="font-size:10px;font-weight:600;color:var(--ink-3);margin-bottom:4px;">사업 후 만족</div>
+        <div style="font-size:20px;font-weight:700;color:var(--ink);font-family:var(--font-mono);">${mA}</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--ink-2);margin-bottom:14px;font-family:var(--font-mono);line-height:1.7;">
+      <div>법정 한도 침해율</div>
+      <div style="margin-top:2px;">
+        <span style="color:var(--red);font-weight:700;font-size:13px;">${rT}%</span>
+        <span style="color:var(--ink-4);font-size:9.5px;">전체 기준 (${ni}÷${total})</span>
+        &nbsp;|&nbsp;
+        <span style="color:var(--red);font-weight:700;font-size:13px;">${rB}%</span>
+        <span style="color:var(--ink-4);font-size:9.5px;">기존 만족 기준 (${ni}÷${mB})</span>
+      </div>
+    </div>`;
+      };
+      const lossBlock = (title, lossObj, total) => `
+    <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-bottom:12px;letter-spacing:-0.02em;">${title}</div>
+    ${makeBar(lossObj['0'], '일조량 변화 없음', total, '#2563A8')}
+    ${makeBar(lossObj['0.5'], '30분 감소', total, '#F5A623')}
+    ${makeBar(lossObj['1.0'], '1시간 감소', total, '#F08022')}
+    ${makeBar(lossObj['1.5'], '1시간 30분 감소', total, '#E05D2D')}
+    ${makeBar(lossObj['2.0+'], '2시간 이상 감소', total, '#D64545')}`;
+
+      box.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-md);padding:16px;">
+      ${statBlock('외부공간 (운동장 등)', gMB, gNI, gMA, pts.length, `${pts.length}칸 · ${spacingM}m 격자`)}
+      ${winEnabled ? `
+        <div style="height:1px;background:var(--line);margin:4px 0 16px;"></div>
+        ${statBlock('창문 (전체 동·층)', wMB, wNI, wMA, windows.length, `${windows.length}창 · ${winSpacingM}m 간격`)}
+      ` : ''}
+      <button class="btn accent-ghost" id="diffToggleBtn" style="margin-top:4px;" onclick="toggleDiffChart()">
+        📊 일조 감소량 상세 차이보기 (클릭)
+      </button>
+      <div id="diffChartBox" style="display:none;margin-top:16px;padding-top:16px;border-top:1px dashed var(--line-2);">
+        ${lossBlock('외부공간 일조 시간 감소', gLoss, pts.length)}
+        ${winEnabled ? `
+          <div style="height:1px;background:var(--line);margin:18px 0;"></div>
+          ${lossBlock('창문 일조 시간 감소', wLoss, windows.length)}
+        ` : ''}
+        <div style="margin-top:10px;padding:10px;background:var(--surface-2);border-radius:var(--r-sm);font-size:10px;color:var(--ink-2);line-height:1.5;">
+          <strong style="color:var(--ink);">※ 안내</strong><br>
+          외부공간 1칸 = ${spacingM}m × ${spacingM}m · 창 1개는 각 층 facade ${winSpacingM}m 간격 가상점. 북향창은 입사각 조건상 사업 전후 변화량이 자연스럽게 0에 수렴합니다.
+        </div>
+      </div>
+      <div style="height:1px;background:var(--line);margin:16px 0 12px;"></div>
+      <div style="font-size:11.5px;color:var(--ink-2);line-height:1.8;font-family:var(--font-mono);">
+        대상: <span style="font-weight:600;color:var(--ink);">${s.name}</span>${s.internalBlds && s.internalBlds.length ? ` <span style="color:var(--ink-3);font-size:10.5px;">(내부 건물 ${s.internalBlds.length}동)</span>` : ' <span style="color:var(--ink-3);font-size:10.5px;">(건물 없음 → 부지 전체 평가)</span>'}
+      </div>
+      ${s.internalBlds && s.internalBlds.length ? `
+        <div style="margin-top:10px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-sm);">
+          <div style="font-size:10px;font-weight:700;color:var(--ink-2);margin-bottom:8px;letter-spacing:0.06em;text-transform:uppercase;font-family:var(--font-mono);">내부 건물 제원</div>
+          ${s.internalBlds.map((b, i) => {
+        const d = _getBuildingDims(b);
+        if (!d) return '';
+        return `<div style="font-size:10.5px;color:var(--ink-2);font-family:var(--font-mono);line-height:1.8;${i > 0 ? 'border-top:1px dashed var(--line);padding-top:6px;margin-top:6px;' : ''}">
+              <div><span style="color:var(--ink);font-weight:700;">동${i + 1}${d.bldNm ? `<span style="color:var(--ink-3);font-weight:400"> · ${d.bldNm}</span>` : ''}</span></div>
+              <div style="color:var(--ink-3);padding-left:4px;">
+                ${d.floors}F · 건축면적 ${d.area.toLocaleString()}㎡<br>
+                가로 ${d.length}m × 세로 ${d.width}m · 높이 ${d.height.toFixed(1)}m
+              </div>
+            </div>`;
+      }).join('')}
+        </div>
+      ` : ''}
+      <div id="gridToggleLink" style="margin-top:14px;cursor:pointer;color:var(--ink-3);font-size:11px;font-weight:500;text-decoration:underline;text-underline-offset:3px;text-align:center;" onclick="toggleGridOverlay()">격자/창 오버레이 숨기기</div>
+    </div>`;
+
+      btn.textContent = '격자 재분석'; btn.disabled = false;
+    }
+
+    // ── 건물 폴리곤 → {면적, 길이(가로), 너비(세로), 높이, 층수, 동명}
+    function _getBuildingDims(bld) {
+      if (!bld.geometry) return null;
+      const bldGeom = bld.geometry.type === 'Polygon'
+        ? turf.polygon(bld.geometry.coordinates)
+        : turf.multiPolygon(bld.geometry.coordinates);
+      const ring = bld.geometry.type === 'Polygon'
+        ? bld.geometry.coordinates[0]
+        : bld.geometry.coordinates[0][0];
+      if (!ring || ring.length < 4) return null;
+
+      // 1) 가장 긴 edge의 방위 → 건물 주축
+      let longBear = 0, longLen = 0;
+      for (let i = 0; i < ring.length - 1; i++) {
+        const len = turf.distance(turf.point(ring[i]), turf.point(ring[i + 1]), { units: 'meters' });
+        if (len > longLen) {
+          longLen = len;
+          longBear = turf.bearing(turf.point(ring[i]), turf.point(ring[i + 1]));
+        }
+      }
+      // 2) 주축에 맞춰 회전 → axis-aligned bbox → 실제 가로/세로
+      try {
+        const rotated = turf.transformRotate(bldGeom, -longBear);
+        const bbox = turf.bbox(rotated);
+        const w = turf.distance(turf.point([bbox[0], bbox[1]]), turf.point([bbox[2], bbox[1]]), { units: 'meters' });
+        const h = turf.distance(turf.point([bbox[0], bbox[1]]), turf.point([bbox[0], bbox[3]]), { units: 'meters' });
+        const area = turf.area(bldGeom);
+        const height = bld._height || 0;
+        const floors = Math.max(1, Math.round(height / 3));
+        const bldNm = (bld.properties?.bld_nm || bld.properties?.BLD_NM
+          || bld.properties?.dong_nm || bld.properties?.DONG_NM || '').toString().trim();
+        return {
+          area: Math.round(area),
+          length: Math.round(Math.max(w, h)),
+          width: Math.round(Math.min(w, h)),
+          height: height,
+          floors: floors,
+          bldNm: bldNm
+        };
+      } catch (e) { return null; }
+    }
+    // ── 폴리곤 ring을 facade 단위로 단순화 (인접 edge가 ±angleDeg 이내면 병합)
+    function _simplifyFacades(ring, polygonGeom, angleDeg = 15) {
+      if (!ring || ring.length < 4) return [];
+      const edges = [];
+      for (let i = 0; i < ring.length - 1; i++) {
+        const start = ring[i], end = ring[i + 1];
+        edges.push({ start, end, bearing: turf.bearing(turf.point(start), turf.point(end)) });
+      }
+      const groups = [];
+      let current = [edges[0]];
+      for (let i = 1; i < edges.length; i++) {
+        const prev = current[current.length - 1];
+        let diff = Math.abs(prev.bearing - edges[i].bearing);
+        if (diff > 180) diff = 360 - diff;
+        if (diff <= angleDeg) current.push(edges[i]);
+        else { groups.push(current); current = [edges[i]]; }
+      }
+      groups.push(current);
+      // 첫/끝 wrap-around 병합
+      if (groups.length > 1) {
+        const firstB = groups[0][0].bearing;
+        const lastB = groups[groups.length - 1][groups[groups.length - 1].length - 1].bearing;
+        let diff = Math.abs(firstB - lastB);
+        if (diff > 180) diff = 360 - diff;
+        if (diff <= angleDeg) {
+          groups[0] = [...groups[groups.length - 1], ...groups[0]];
+          groups.pop();
+        }
+      }
+      const facades = [];
+      groups.forEach(grp => {
+        const start = grp[0].start;
+        const end = grp[grp.length - 1].end;
+        const length = turf.distance(turf.point(start), turf.point(end), { units: 'meters' });
+        if (length < 1.5) return;
+        const bearing = turf.bearing(turf.point(start), turf.point(end));
+        const midLng = (start[0] + end[0]) / 2;
+        const midLat = (start[1] + end[1]) / 2;
+        const testNorm = (bearing + 90 + 360) % 360;
+        const dlng = Math.sin(testNorm * Math.PI / 180) * 0.00005;
+        const dlat = Math.cos(testNorm * Math.PI / 180) * 0.00005;
+        let normalBearing = testNorm;
+        try {
+          if (turf.booleanPointInPolygon(turf.point([midLng + dlng, midLat + dlat]), polygonGeom)) {
+            normalBearing = (bearing - 90 + 360) % 360;
+          }
+        } catch (e) { }
+        facades.push({ start, end, length, normalBearing });
+      });
+      return facades;
+    }
+
+    // ── 학교 내부 건물들로부터 가상 창문 점 생성
+    function _generateWindowsForSchool(s, spacingM) {
+      s.windows = [];
+      if (!s.internalBlds || !s.internalBlds.length) return;
+      s.internalBlds.forEach((bld, bldIdx) => {
+        if (!bld.geometry) return;
+        const height = bld._height || 0;
+        if (height < 3) return;
+        const floors = Math.max(1, Math.round(height / 3));
+        const bldGeom = bld.geometry.type === 'Polygon'
+          ? turf.polygon(bld.geometry.coordinates)
+          : turf.multiPolygon(bld.geometry.coordinates);
+        const rings = bld.geometry.type === 'Polygon'
+          ? [bld.geometry.coordinates[0]]
+          : bld.geometry.coordinates.map(p => p[0]);
+        rings.forEach(ring => {
+          const facades = _simplifyFacades(ring, bldGeom, 15);
+          facades.forEach(f => {
+            if (f.length < spacingM) return;
+            const numPts = Math.max(1, Math.floor(f.length / spacingM));
+            const cosLat = Math.cos(f.start[1] * Math.PI / 180);
+            const pushDLng = Math.sin(f.normalBearing * Math.PI / 180) * 0.3 / (111320 * cosLat);
+            const pushDLat = Math.cos(f.normalBearing * Math.PI / 180) * 0.3 / 110540;
+            for (let i = 0; i < numPts; i++) {
+              const t = (i + 0.5) / numPts;
+              const lng = f.start[0] + (f.end[0] - f.start[0]) * t + pushDLng;
+              const lat = f.start[1] + (f.end[1] - f.start[1]) * t + pushDLat;
+              for (let fl = 1; fl <= floors; fl++) {
+                const z = (fl - 1) * 3 + 1.75;
+                s.windows.push({ lat, lng, z, floor: fl, normalBearing: f.normalBearing, bldIdx });
+              }
+            }
+          });
+        });
+      });
+    }
+
+    function getShadowPolygons(buildings, lat, lng, dateStr, h, m, evalHeight = 0) {
+      const date = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`);
+      if (isNaN(date)) return null;
+      const pos = SunCalc.getPosition(date, lat, lng);
+      if (pos.altitude <= 0.017) return 'FULL';
+
+      const sunBrg = (pos.azimuth + Math.PI + 2 * Math.PI) % (2 * Math.PI);
+      const shadowBrg = (sunBrg + Math.PI) % (2 * Math.PI);
+      const lenPerM = 1 / Math.tan(pos.altitude);
+      const cosLat = Math.cos(lat * Math.PI / 180);
+      const shadows = [];
+
+      buildings.forEach(f => {
+        const fHeight = f._height;
+        if (!fHeight || !f.geometry) return;
+        const effH = fHeight - evalHeight;
+        if (effH <= 0) return;
+        const len = Math.min(effH * lenPerM, 2000);
+        const dlng = len * Math.sin(shadowBrg) / (111320 * cosLat);
+        const dlat = len * Math.cos(shadowBrg) / 110540;
+        const rings = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+        rings.forEach(ring => {
+          const outer = ring[0];
+          if (!outer || outer.length < 4) return;
+          try {
+            const allPts = outer.map(c => [c[0], c[1]]).concat(outer.map(c => [c[0] + dlng, c[1] + dlat]));
+            const hull = turf.convex(turf.multiPoint(allPts));
+            if (hull) shadows.push(hull);
+          } catch (e) { }
+        });
+      });
+      return shadows;
+    }
+
+    async function fetchVWorldParcel(lat, lng) {
+      const url = new URL('https://api.vworld.kr/req/data');
+      url.searchParams.set('service', 'data'); url.searchParams.set('request', 'GetFeature');
+      url.searchParams.set('data', 'lp_pa_cbnd_bubun'); url.searchParams.set('key', window._vwKey);
+      url.searchParams.set('domain', window._vwDomain); url.searchParams.set('geomFilter', `POINT(${lng} ${lat})`);
+      url.searchParams.set('geometry', 'true'); url.searchParams.set('crs', 'EPSG:4326');
+      try { const r = await fetchViaProxy(url.toString()); const j = await r.json(); return j.response?.result?.featureCollection?.features?.[0] || null; } catch (e) { return null; }
+    }
+
+    async function fetchWfsChunk(minX, minY, maxX, maxY, layer) {
+      const url = new URL('https://api.vworld.kr/req/data');
+      url.searchParams.set('service', 'data'); url.searchParams.set('request', 'GetFeature');
+      url.searchParams.set('data', layer); url.searchParams.set('key', window._vwKey);
+      url.searchParams.set('domain', window._vwDomain);
+      url.searchParams.set('geomFilter', `BOX(${minX},${minY},${maxX},${maxY})`);
+      url.searchParams.set('geometry', 'true'); url.searchParams.set('crs', 'EPSG:4326'); url.searchParams.set('size', '1000');
+      try {
+        const r = await fetchViaProxy(url.toString());
+        const j = await r.json();
+        const features = j.response?.result?.featureCollection?.features || [];
+        return features;
+      } catch (e) { console.error(`fetchWfsChunk 오류:`, e); return []; }
+    }
+    function toggleGridOverlay() {
+      _overlayVisible = !_overlayVisible;
+      const tgt = _overlayVisible ? map : null;
+      _gridPolys.forEach(p => p.setMap(tgt));
+      _winMarkers.forEach(p => p.setMap(tgt));
+      const el = document.getElementById('gridToggleLink');
+      if (el) el.textContent = _overlayVisible
+        ? '격자/창 오버레이 숨기기'
+        : '격자/창 오버레이 보이기';
+    }
+    function clearGridPolys() {
+      _gridPolys.forEach(p => p.setMap(null)); _gridPolys = [];
+      _winMarkers.forEach(p => p.setMap(null)); _winMarkers = [];
+    }
+    // ★ 격자 시각화 모드 전환 (ox: 기존 O/X 색상 / loss: 일조감소량 색상)
+    function setGridVisualizationMode(mode) {
+      _gridPolys.forEach(poly => {
+        const newColor = mode === 'loss' ? poly._lossColor : poly._oxColor;
+        if (newColor) poly.setOptions({ fillColor: newColor });
+      });
+      _winMarkers.forEach(m => {
+        const newColor = mode === 'loss' ? m._lossColor : m._oxColor;
+        if (newColor) m.setOptions({ fillColor: newColor });
+      });
+    }
+
+    // ★ 상세 차이보기 토글 (차트 펼침/접힘에 따라 지도 색상도 함께 전환)
+    function toggleDiffChart() {
+      const d = document.getElementById('diffChartBox');
+      const btn = document.getElementById('diffToggleBtn');
+      const willShow = (d.style.display === 'none');
+      d.style.display = willShow ? 'block' : 'none';
+      setGridVisualizationMode(willShow ? 'loss' : 'ox');
+      if (btn) btn.textContent = willShow
+        ? '📊 일조 감소량 상세 차이보기 (다시 클릭하면 닫힘)'
+        : '📊 일조 감소량 상세 차이보기 (클릭)';
+    }
+
+    function clearAll() {
+      forceOffParcelMode();
+      forceOffPlannedMode();
+      _selectedParcels.forEach(p => { if (p.poly) p.poly.setMap(null); }); _selectedParcels = [];
+      if (_combinedOutlinePoly) { _combinedOutlinePoly.setMap(null); _combinedOutlinePoly = null; }
+      if (_projectLabel) { _projectLabel.setMap(null); _projectLabel = null; }
+      _layoutPolys.forEach(p => p.setMap(null)); _layoutPolys = []; _layoutFeats = [];
+      _schools.forEach(s => { if (s.poly) s.poly.setMap(null); if (s.label) s.label.setMap(null); }); _schools = [];
+      _absZonePolys.forEach(p => p.setMap(null)); _absZonePolys = [];
+      _relZonePolys.forEach(p => p.setMap(null)); _relZonePolys = [];
+      _shadowBldPolys.forEach(p => p.setMap(null)); _shadowBldPolys = [];
+      _shadowCastPolys.forEach(p => p.setMap(null)); _shadowCastPolys = [];
+      _kinderAbsPolys.forEach(p => p.setMap(null)); _kinderAbsPolys = [];
+      _kinderRelPolys.forEach(p => p.setMap(null)); _kinderRelPolys = [];
+      _kindergartens.forEach(k => { if (k.poly) k.poly.setMap(null); if (k.label) k.label.setMap(null); }); _kindergartens = [];
+      _clearComplexOverlays();
+      clearGridPolys();
+      _projectGeom = null; _selectedSchool = null;
+      document.getElementById('projectInfoBox').style.display = 'none';
+      document.getElementById('parcelList').innerHTML = '';
+      document.getElementById('parcelCountTxt').textContent = '0필지';
+      document.getElementById('schoolSection').style.display = 'none';
+      document.getElementById('kinderSection').style.display = 'none';
+      document.getElementById('analysisSection').style.display = 'none';
+    }
+
+    const tick = () => new Promise(r => setTimeout(r, 10));
+    function showLoading(on, msg) { document.getElementById('loading').classList.toggle('on', on); if (msg) document.getElementById('loadingMsg').textContent = msg; }
+    function setLoadingMsg(m) { document.getElementById('loadingMsg').textContent = m; }
+    function setStatus(m) { document.getElementById('statusBar').textContent = m; }
+
+    // ★ Fix 3: 단지 윤곽 폴리라인까지 함께 토글
+    function toggleComplexInfo() {
+      _showComplexInfo = !_showComplexInfo;
+      const btn = document.getElementById('toggleComplexBtn');
+      const tgtMap = _showComplexInfo ? map : null;
+      btn.textContent = `지도 표시 ${_showComplexInfo ? 'ON' : 'OFF'}`;
+      btn.classList.toggle('active', _showComplexInfo);
+      _nearbyComplexPolys.forEach(p => p.setMap(tgtMap));
+      _nearbyComplexLabels.forEach(l => l.setMap(tgtMap));
+      _nearbyDistLines.forEach(l => l.setMap(tgtMap));
+    }
+
+    function toggleWindowAnalysis() {
+      _winAnalysisEnabled = !_winAnalysisEnabled;
+      const btn = document.getElementById('windowToggleBtn');
+      btn.textContent = `창 분석 ${_winAnalysisEnabled ? 'ON' : 'OFF'}`;
+      btn.classList.toggle('active', _winAnalysisEnabled);
+    }
+
+    function startKinderDraw(id) {
+      _activeKinderDrawId = id;
+      drawingManager.select(kakao.maps.drawing.OverlayType.POLYGON);
+      setStatus('지도에 유치원 부지를 마우스로 클릭하여 그리고, 마지막 점을 더블클릭(또는 첫점 클릭)하여 마감하세요.');
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 📱 모바일 바텀 시트 드래그 동작
+    // ════════════════════════════════════════════════════════
+    (function setupBottomSheet() {
+      const sidebar = document.getElementById('sidebar');
+      const handle = document.getElementById('sheetHandle');
+      const label = document.getElementById('sheetLabel');
+      if (!sidebar || !handle) return;
+
+      let state = 'middle';
+      let startY = 0;
+      let startHeight = 0;
+      let dragging = false;
+
+      const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+
+      const updateLabel = () => {
+        if (state === 'collapsed') label.textContent = '↑ 정보 보기';
+        else if (state === 'expanded') label.textContent = '↓ 줄이기';
+        else label.textContent = '↑↓ 드래그';
+      };
+
+      const setState = (newState) => {
+        sidebar.classList.remove('collapsed', 'expanded');
+        if (newState === 'collapsed') sidebar.classList.add('collapsed');
+        else if (newState === 'expanded') sidebar.classList.add('expanded');
+        state = newState;
+        updateLabel();
+      };
+
+      handle.addEventListener('click', (e) => {
+        if (!isMobile() || dragging) return;
+        if (state === 'collapsed') setState('middle');
+        else if (state === 'middle') setState('expanded');
+        else setState('collapsed');
+      });
+
+      const onStart = (e) => {
+        if (!isMobile()) return;
+        const t = (e.touches && e.touches[0]) || e;
+        startY = t.clientY;
+        startHeight = sidebar.getBoundingClientRect().height;
+        dragging = false;
+        sidebar.style.transition = 'none';
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onEnd);
+      };
+
+      const onMove = (e) => {
+        if (!isMobile()) return;
+        const t = (e.touches && e.touches[0]) || e;
+        const deltaY = startY - t.clientY;
+        const newHeight = Math.max(56, Math.min(window.innerHeight * 0.9, startHeight + deltaY));
+        sidebar.style.height = newHeight + 'px';
+        if (Math.abs(deltaY) > 5) dragging = true;
+        if (e.cancelable) e.preventDefault();
+      };
+
+      const onEnd = (e) => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        sidebar.style.transition = '';
+        sidebar.style.height = '';
+
+        if (!dragging) return;
+
+        const h = sidebar.getBoundingClientRect().height;
+        const vh = window.innerHeight;
+        if (h < vh * 0.2) setState('collapsed');
+        else if (h < vh * 0.65) setState('middle');
+        else setState('expanded');
+
+        setTimeout(() => { dragging = false; }, 50);
+      };
+
+      handle.addEventListener('mousedown', onStart);
+      handle.addEventListener('touchstart', onStart, { passive: true });
+
+      const init = () => {
+        if (isMobile()) {
+          setState('middle');
+        } else {
+          sidebar.classList.remove('collapsed', 'expanded');
+          sidebar.style.height = '';
+        }
+      };
+
+      init();
+      window.addEventListener('resize', init);
+    })();
+  </script>
+
+</html>
